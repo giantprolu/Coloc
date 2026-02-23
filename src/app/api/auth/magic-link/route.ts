@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     // Envoie l'email via Resend
     const { error: emailError } = await resend.emails.send({
-      from: "ColocEvents <onboarding@resend.dev>",
+      from: "ColocEvents <noreply@app.trouve-tout-conseil.fr>",
       to: [email],
       subject: "Votre lien de connexion ColocEvents",
       html: `
