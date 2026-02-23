@@ -2,11 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { formatTimeRemaining, calculateVoteResults } from "@/lib/votes";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VoteBallot } from "@/types";
 import Link from "next/link";
 import { Vote, CheckCircle, XCircle, Clock } from "lucide-react";
+import { closeAllExpiredVotesForColocation } from "@/app/actions/votes";
 
 export default async function VotesPage() {
   const supabase = await createClient();
@@ -23,6 +23,9 @@ export default async function VotesPage() {
     .single();
 
   if (!member) redirect("/onboarding");
+
+  // Clôture paresseuse de tous les votes expirés de la coloc
+  await closeAllExpiredVotesForColocation(member.colocation_id).catch(() => {});
 
   // Votes ouverts
   const { data: openVotes } = await supabase

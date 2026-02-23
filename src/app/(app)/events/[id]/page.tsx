@@ -16,9 +16,9 @@ import {
   MapPin,
   MessageSquare,
   Pencil,
-  Trash2,
 } from "lucide-react";
 import { DeleteEventButton } from "@/components/events/DeleteEventButton";
+import { closeExpiredVotesForEvent } from "@/app/actions/votes";
 
 interface EventPageProps {
   params: Promise<{ id: string }>;
@@ -26,6 +26,13 @@ interface EventPageProps {
 
 export default async function EventPage({ params }: EventPageProps) {
   const { id } = await params;
+
+  // Clôture paresseuse : ferme les votes expirés à chaque chargement de la page
+  // (remplace le cron */15 qui n'est pas disponible sur le plan Hobby Vercel)
+  await closeExpiredVotesForEvent(id).catch(() => {
+    // Silencieux : on ne bloque pas l'affichage si ça échoue
+  });
+
   const supabase = await createClient();
 
   const {
