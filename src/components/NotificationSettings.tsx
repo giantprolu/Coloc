@@ -36,7 +36,6 @@ const prefGroups: {
   {
     title: "Autres",
     items: [
-      { key: "chores_reminder", label: "Rappel tâches ménagères" },
       { key: "announcements", label: "Nouvelles annonces" },
     ],
   },

@@ -2,10 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { formatRelative } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { NewAnnouncementForm } from "@/components/AnnouncementCard";
+import { AnnouncementDoneButton } from "@/components/AnnouncementDoneButton";
 import { Pin, Megaphone } from "lucide-react";
 
 export default async function AnnouncementsPage() {
@@ -74,6 +74,7 @@ export default async function AnnouncementsPage() {
                     </div>
                     <p className="text-sm text-gray-900">{announcement.content}</p>
                   </div>
+                  <AnnouncementDoneButton announcementId={announcement.id} />
                 </div>
               </CardContent>
             </Card>

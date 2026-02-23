@@ -122,7 +122,7 @@ export async function fetchChatMessages(
 
   let query = admin
     .from("chat_messages")
-    .select("*, member:members(id, display_name, avatar_url)")
+    .select("*, member:members!chat_messages_member_id_fkey(id, display_name, avatar_url)")
     .eq("channel_id", channelId)
     .order("created_at", { ascending: true });
 
@@ -151,7 +151,7 @@ export async function fetchSingleMessage(messageId: string) {
 
   const { data } = await admin
     .from("chat_messages")
-    .select("*, member:members(id, display_name, avatar_url)")
+    .select("*, member:members!chat_messages_member_id_fkey(id, display_name, avatar_url)")
     .eq("id", messageId)
     .single();
 

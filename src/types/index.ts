@@ -6,7 +6,6 @@ export type NoiseLevel = "quiet" | "moderate" | "festive";
 export type EventStatus = "confirmed" | "cancelled";
 export type ReactionType = "thumbs_up" | "party" | "neutral" | "thumbs_down" | "oppose";
 export type ChannelType = "general" | "event";
-export type ChoreFrequency = "daily" | "weekly" | "biweekly" | "monthly";
 
 // ============ ENTITÉS ============
 
@@ -130,29 +129,6 @@ export interface ExpenseSplit {
   member?: Member;
 }
 
-export interface Chore {
-  id: string;
-  colocation_id: string;
-  name: string;
-  icon: string | null;
-  frequency: ChoreFrequency;
-  created_at: string;
-}
-
-export interface ChoreAssignment {
-  id: string;
-  chore_id: string;
-  member_id: string;
-  week_start: string;
-  completed: boolean;
-  completed_at: string | null;
-  swapped_with: string | null;
-  swap_accepted: boolean | null;
-  // Relations jointes
-  chore?: Chore;
-  member?: Member;
-}
-
 export interface Announcement {
   id: string;
   colocation_id: string;
@@ -181,7 +157,6 @@ export interface NotificationPreferences {
   events_reminder: boolean;
   chat_all: boolean;
   chat_mentions: boolean;
-  chores_reminder: boolean;
   announcements: boolean;
 }
 

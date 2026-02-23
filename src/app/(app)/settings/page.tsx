@@ -7,7 +7,6 @@ import {
   User,
   Home,
   Bell,
-  Megaphone,
   ChevronRight,
   Copy,
   LogOut,
@@ -15,6 +14,7 @@ import {
 import { getInitials } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogoutButton } from "@/components/LogoutButton";
+import { DeleteAccountButton } from "@/components/DeleteAccountButton";
 import { CopyInviteCode } from "@/components/CopyInviteCode";
 
 export default async function SettingsPage() {
@@ -47,12 +47,6 @@ export default async function SettingsPage() {
       icon: Bell,
       label: "Notifications",
       description: "Préférences de notification",
-    },
-    {
-      href: "/announcements",
-      icon: Megaphone,
-      label: "Annonces",
-      description: "Messages courts pour toute la coloc",
     },
   ];
 
@@ -145,6 +139,9 @@ export default async function SettingsPage() {
 
       {/* Déconnexion */}
       <LogoutButton />
+
+      {/* Suppression du compte */}
+      <DeleteAccountButton />
     </div>
   );
 }
