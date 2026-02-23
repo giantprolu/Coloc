@@ -61,7 +61,15 @@ export async function POST(request: Request) {
       { title, body, url, tag: type }
     );
 
-    return NextResponse.json({ ok: true, ...result });
+    // Nettoie les abonnements expirés
+    if (result.expiredEndpoints.length > 0) {
+      await supabase
+        .from("push_subscriptions")
+        .delete()
+        .in("endpoint", result.expiredEndpoints);
+    }
+
+    return NextResponse.json({ ok: true, sent: result.success, failed: result.failed });
   } catch (err) {
     console.error("Erreur envoi push :", err);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

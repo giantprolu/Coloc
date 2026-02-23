@@ -46,32 +46,40 @@ export async function sendPushNotification(
       title: payload.title,
       body: payload.body,
       url: payload.url || "/dashboard",
-      icon: payload.icon || "/icons/icon-192x192.png",
-      badge: payload.badge || "/icons/icon-192x192.png",
+      icon: payload.icon || "/icons/icon-192.png",
+      badge: payload.badge || "/icons/icon-192.png",
       tag: payload.tag,
     })
   );
 }
 
 // Envoie une notification à plusieurs abonnés
+// Retourne aussi les endpoints expirés à nettoyer
 export async function sendPushToMany(
   subscriptions: PushSubscriptionData[],
   payload: PushPayload
-): Promise<{ success: number; failed: number }> {
+): Promise<{ success: number; failed: number; expiredEndpoints: string[] }> {
   let success = 0;
   let failed = 0;
+  const expiredEndpoints: string[] = [];
 
   await Promise.allSettled(
     subscriptions.map(async (sub) => {
       try {
         await sendPushNotification(sub, payload);
         success++;
-      } catch (error) {
-        console.error("Échec d'envoi de notification push :", error);
+      } catch (error: unknown) {
         failed++;
+        // 410 Gone ou 404 = abonnement expiré, à supprimer
+        const statusCode = (error as { statusCode?: number })?.statusCode;
+        if (statusCode === 410 || statusCode === 404) {
+          expiredEndpoints.push(sub.endpoint);
+        } else {
+          console.error("Échec d'envoi de notification push :", error);
+        }
       }
     })
   );
 
-  return { success, failed };
+  return { success, failed, expiredEndpoints };
 }

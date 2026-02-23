@@ -14,6 +14,7 @@ import {
 import { getInitials } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogoutButton } from "@/components/LogoutButton";
+import { LeaveColocButton } from "@/components/LeaveColocButton";
 import { DeleteAccountButton } from "@/components/DeleteAccountButton";
 import { CopyInviteCode } from "@/components/CopyInviteCode";
 
@@ -136,6 +137,9 @@ export default async function SettingsPage() {
           })}
         </CardContent>
       </Card>
+
+      {/* Quitter la coloc */}
+      <LeaveColocButton />
 
       {/* Déconnexion */}
       <LogoutButton />

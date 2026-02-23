@@ -33,6 +33,7 @@ export async function GET(request: Request) {
     .neq("status", "cancelled");
 
   let totalSent = 0;
+  const allExpiredEndpoints: string[] = [];
 
   for (const event of events || []) {
     const { data: members } = await supabase
@@ -42,24 +43,25 @@ export async function GET(request: Request) {
 
     if (!members?.length) continue;
 
+    const memberIds = members.map((m) => m.id);
+
     // Filtre les membres qui ont activé les rappels
-    const { data: prefs } = await supabase
+    // Si pas de préférence enregistrée, on considère que c'est activé par défaut
+    const { data: disabledPrefs } = await supabase
       .from("notification_preferences")
       .select("member_id")
-      .in(
-        "member_id",
-        members.map((m) => m.id)
-      )
-      .eq("events_reminder", true);
+      .in("member_id", memberIds)
+      .eq("events_reminder", false);
 
-    if (!prefs?.length) continue;
+    const disabledIds = new Set((disabledPrefs || []).map((p) => p.member_id));
+    const eligibleIds = memberIds.filter((id) => !disabledIds.has(id));
 
-    const prefMemberIds = prefs.map((p) => p.member_id);
+    if (eligibleIds.length === 0) continue;
 
     const { data: subscriptions } = await supabase
       .from("push_subscriptions")
       .select("*")
-      .in("member_id", prefMemberIds);
+      .in("member_id", eligibleIds);
 
     if (!subscriptions?.length) continue;
 
@@ -78,11 +80,21 @@ export async function GET(request: Request) {
     );
 
     totalSent += result.success;
+    allExpiredEndpoints.push(...result.expiredEndpoints);
+  }
+
+  // Nettoie les abonnements expirés
+  if (allExpiredEndpoints.length > 0) {
+    await supabase
+      .from("push_subscriptions")
+      .delete()
+      .in("endpoint", allExpiredEndpoints);
   }
 
   return NextResponse.json({
     success: true,
     processed: events?.length || 0,
     sent: totalSent,
+    cleaned: allExpiredEndpoints.length,
   });
 }

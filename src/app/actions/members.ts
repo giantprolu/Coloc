@@ -57,3 +57,35 @@ export async function updateMemberRole(memberId: string, newRole: UserRole) {
 
   revalidatePath("/settings/coloc");
 }
+
+/**
+ * Quitte la colocation actuelle.
+ * Supprime l'enregistrement membre (les cascades DB gèrent le reste).
+ */
+export async function leaveColocation() {
+  const supabase = await createServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non authentifié");
+
+  const { data: member } = await supabase
+    .from("members")
+    .select("id, colocation_id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!member) throw new Error("Membre introuvable");
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("members")
+    .delete()
+    .eq("id", member.id);
+
+  if (error) {
+    console.error("Leave coloc error:", error);
+    throw new Error("Impossible de quitter la colocation");
+  }
+}
