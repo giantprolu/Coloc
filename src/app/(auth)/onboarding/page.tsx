@@ -2,18 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { generateInviteCode } from "@/lib/utils";
+import { createColocation, joinColocation } from "@/app/actions/onboarding";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Home, Users } from "lucide-react";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,141 +26,33 @@ export default function OnboardingPage() {
   const [joinRoom, setJoinRoom] = useState("");
   const [inviteCode, setInviteCode] = useState("");
 
-  const handleCreateColoc = async (e: React.FormEvent) => {
+  const handleCreateColoc = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const result = await createColocation(colocName, displayName, room);
 
-      if (!user) throw new Error("Non connecté");
-
-      // Crée la colocation
-      const { data: coloc, error: colocError } = await supabase
-        .from("colocations")
-        .insert({
-          name: colocName,
-          invite_code: generateInviteCode(),
-        })
-        .select()
-        .single();
-
-      if (colocError) throw colocError;
-
-      // Crée le profil membre (admin)
-      const { error: memberError } = await supabase.from("members").insert({
-        user_id: user.id,
-        colocation_id: coloc.id,
-        display_name: displayName,
-        room: room || null,
-        role: "admin",
-      });
-
-      if (memberError) throw memberError;
-
-      // Crée le canal de chat général
-      await supabase.from("chat_channels").insert({
-        colocation_id: coloc.id,
-        name: "Général",
-        type: "general",
-      });
-
-      // Crée les espaces par défaut
-      await supabase.from("spaces").insert([
-        { colocation_id: coloc.id, name: "Salon", icon: "🛋️" },
-        { colocation_id: coloc.id, name: "Cuisine", icon: "🍳" },
-        { colocation_id: coloc.id, name: "Terrasse", icon: "🌿" },
-      ]);
-
-      // Initialise les préférences de notification
-      const { data: member } = await supabase
-        .from("members")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("colocation_id", coloc.id)
-        .single();
-
-      if (member) {
-        await supabase.from("notification_preferences").insert({
-          member_id: member.id,
-        });
-      }
-
-      router.push("/dashboard");
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Une erreur est survenue."
-      );
-    } finally {
+    if (result.error) {
+      setError(result.error);
       setIsLoading(false);
+    } else {
+      router.push("/dashboard");
     }
   };
 
-  const handleJoinColoc = async (e: React.FormEvent) => {
+  const handleJoinColoc = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const result = await joinColocation(inviteCode, joinDisplayName, joinRoom);
 
-      if (!user) throw new Error("Non connecté");
-
-      // Cherche la colocation par code d'invitation
-      const { data: coloc, error: colocError } = await supabase
-        .from("colocations")
-        .select("*")
-        .eq("invite_code", inviteCode.toUpperCase().trim())
-        .single();
-
-      if (colocError || !coloc) {
-        throw new Error("Code d'invitation invalide. Vérifiez le code et réessayez.");
-      }
-
-      // Vérifie que l'utilisateur n'est pas déjà membre
-      const { data: existingMember } = await supabase
-        .from("members")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("colocation_id", coloc.id)
-        .single();
-
-      if (existingMember) {
-        throw new Error("Vous êtes déjà membre de cette colocation.");
-      }
-
-      // Crée le profil membre
-      const { data: newMember, error: memberError } = await supabase
-        .from("members")
-        .insert({
-          user_id: user.id,
-          colocation_id: coloc.id,
-          display_name: joinDisplayName,
-          room: joinRoom || null,
-          role: "member",
-        })
-        .select()
-        .single();
-
-      if (memberError) throw memberError;
-
-      // Initialise les préférences de notification
-      await supabase.from("notification_preferences").insert({
-        member_id: newMember.id,
-      });
-
-      router.push("/dashboard");
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Une erreur est survenue."
-      );
-    } finally {
+    if (result.error) {
+      setError(result.error);
       setIsLoading(false);
+    } else {
+      router.push("/dashboard");
     }
   };
 
@@ -297,7 +187,9 @@ export default function OnboardingPage() {
                     className="w-full bg-indigo-600 hover:bg-indigo-700"
                     disabled={isLoading}
                   >
-                    {isLoading ? "Rejoindre en cours..." : "Rejoindre la colocation"}
+                    {isLoading
+                      ? "Rejoindre en cours..."
+                      : "Rejoindre la colocation"}
                   </Button>
                 </form>
               </TabsContent>
