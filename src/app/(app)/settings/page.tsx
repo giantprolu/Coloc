@@ -7,6 +7,9 @@ import {
   User,
   Home,
   Bell,
+  BookOpen,
+  Receipt,
+  Megaphone,
   ChevronRight,
   Copy,
   LogOut,
@@ -46,6 +49,24 @@ export default async function SettingsPage() {
       icon: Bell,
       label: "Notifications",
       description: "Préférences de notification",
+    },
+    {
+      href: "/expenses",
+      icon: Receipt,
+      label: "Dépenses",
+      description: "Suivi des dépenses partagées (Tricount)",
+    },
+    {
+      href: "/rules",
+      icon: BookOpen,
+      label: "Règles de la coloc",
+      description: "Heures calmes, invités, délais de prévenance",
+    },
+    {
+      href: "/announcements",
+      icon: Megaphone,
+      label: "Annonces",
+      description: "Messages courts pour toute la coloc",
     },
   ];
 

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/BottomNav";
+import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 import { Toaster } from "@/components/ui/sonner";
 
 export default async function AppLayout({
@@ -23,7 +24,7 @@ export default async function AppLayout({
   // Vérifie que l'utilisateur a un profil membre
   const { data: member } = await supabase
     .from("members")
-    .select("id")
+    .select("id, colocation_id")
     .eq("user_id", user.id)
     .single();
 
@@ -40,6 +41,8 @@ export default async function AppLayout({
       >
         Aller au contenu principal
       </a>
+      {/* Écoute les broadcasts de la coloc pour rafraîchir l'UI en temps réel */}
+      <RealtimeRefresher colocationId={member.colocation_id} />
       <main id="main-content" className="mx-auto max-w-md pb-20">{children}</main>
       <BottomNav />
       <Toaster position="top-center" richColors />

@@ -111,6 +111,7 @@ export default async function DashboardPage() {
       {/* Statut de présence */}
       <PresenceToggle
         memberId={member.id}
+        colocationId={colocationId}
         currentStatus={member.presence_status}
         returnDate={member.presence_return_date}
       />

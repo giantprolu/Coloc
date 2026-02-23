@@ -18,11 +18,11 @@ export function useRealtimeChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // @supabase/ssr v0.8+ crée un singleton — useMemo garantit la stabilité
   const supabase = useMemo(() => createClient(), []);
-
-  // Ref pour accès sans re-créer les callbacks
   const messagesRef = useRef<ChatMessage[]>([]);
+  // Ref vers le canal realtime pour pouvoir broadcaster depuis sendMessage
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -40,7 +40,7 @@ export function useRealtimeChat({
     });
   }, []);
 
-  // ─── Chargement initial (query simple, sans self-join) ──────────────────
+  // ─── Chargement initial ──────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
@@ -62,9 +62,29 @@ export function useRealtimeChat({
   }, [channelId, supabase]);
 
   // ─── Souscription temps réel ─────────────────────────────────────────────
+  // Broadcast (primaire) + postgres_changes (backup si replication activée)
   useEffect(() => {
+    const fetchAndMerge = async (id: string) => {
+      // Évite de refetcher si le message est déjà dans la liste
+      if (messagesRef.current.some((m) => m.id === id)) return;
+
+      const { data } = await supabase
+        .from("chat_messages")
+        .select("*, member:members(id, display_name, avatar_url)")
+        .eq("id", id)
+        .single();
+
+      if (data) mergeMessages([data as ChatMessage]);
+    };
+
     const realtimeChannel = supabase
       .channel(`coloc:${colocationId}:chat:${channelId}`)
+      // Broadcast — mécanisme principal, sans config Supabase requise
+      .on("broadcast", { event: "new_message" }, async ({ payload }) => {
+        const { id } = payload as { id: string };
+        await fetchAndMerge(id);
+      })
+      // postgres_changes — backup (nécessite replication activée sur Supabase)
       .on(
         "postgres_changes",
         {
@@ -75,20 +95,16 @@ export function useRealtimeChat({
         },
         async (payload) => {
           const id = (payload as unknown as { new: { id: string } }).new.id;
-
-          const { data } = await supabase
-            .from("chat_messages")
-            .select("*, member:members(id, display_name, avatar_url)")
-            .eq("id", id)
-            .single();
-
-          if (data) mergeMessages([data as ChatMessage]);
+          await fetchAndMerge(id);
         }
       )
       .subscribe();
 
+    channelRef.current = realtimeChannel;
+
     return () => {
       supabase.removeChannel(realtimeChannel);
+      channelRef.current = null;
     };
   }, [channelId, colocationId, supabase, mergeMessages]);
 
@@ -124,7 +140,7 @@ export function useRealtimeChat({
     };
   }, [channelId, supabase, mergeMessages]);
 
-  // ─── Envoi avec mise à jour optimiste ────────────────────────────────────
+  // ─── Envoi avec mise à jour optimiste + broadcast ─────────────────────────
   const sendMessage = useCallback(
     async (content: string, replyTo?: string) => {
       const tempId = `optimistic-${Date.now()}`;
@@ -141,7 +157,6 @@ export function useRealtimeChat({
       setMessages((prev) => [...prev, optimistic]);
 
       try {
-        // Select minimal (pas de join complexe) pour éviter les erreurs
         const { data, error } = await supabase
           .from("chat_messages")
           .insert({
@@ -155,7 +170,7 @@ export function useRealtimeChat({
 
         if (error) throw error;
 
-        // Remplace tempId par le vrai ID (garde les données optimistes)
+        // Remplace tempId par le vrai ID
         setMessages((prev) =>
           prev.map((m) =>
             m.id === tempId
@@ -163,6 +178,13 @@ export function useRealtimeChat({
               : m
           )
         );
+
+        // Broadcast aux autres clients (mécanisme principal)
+        await channelRef.current?.send({
+          type: "broadcast",
+          event: "new_message",
+          payload: { id: data.id },
+        });
       } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         throw err;

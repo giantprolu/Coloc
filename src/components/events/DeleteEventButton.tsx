@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,29 @@ import {
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-export function DeleteEventButton({ eventId }: { eventId: string }) {
+interface DeleteEventButtonProps {
+  eventId: string;
+  colocationId: string;
+}
+
+export function DeleteEventButton({ eventId, colocationId }: DeleteEventButtonProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Canal pour broadcaster la suppression aux autres utilisateurs
+  useEffect(() => {
+    const channel = supabase
+      .channel(`coloc-refresh:${colocationId}`)
+      .subscribe();
+    channelRef.current = channel;
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [colocationId, supabase]);
 
   const handleDelete = async () => {
     setIsLoading(true);
@@ -30,6 +48,13 @@ export function DeleteEventButton({ eventId }: { eventId: string }) {
         .eq("id", eventId);
 
       if (error) throw error;
+
+      // Broadcast : les autres utilisateurs verront la suppression immédiatement
+      await channelRef.current?.send({
+        type: "broadcast",
+        event: "refresh",
+        payload: {},
+      });
 
       toast.success("Événement annulé");
       router.push("/calendar");

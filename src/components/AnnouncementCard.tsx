@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,7 +16,7 @@ interface NewAnnouncementFormProps {
 export function NewAnnouncementForm({ memberId, colocationId }: NewAnnouncementFormProps) {
   const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
+  const router = useRouter();
   const supabase = createClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,7 +35,7 @@ export function NewAnnouncementForm({ memberId, colocationId }: NewAnnouncementF
 
       setContent("");
       toast.success("Annonce publiée !");
-      window.location.reload();
+      router.refresh();
     } catch {
       toast.error("Impossible de publier l'annonce");
     } finally {

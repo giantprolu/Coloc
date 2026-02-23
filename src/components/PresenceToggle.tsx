@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PresenceStatus, PRESENCE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -15,17 +15,32 @@ import { toast } from "sonner";
 
 interface PresenceToggleProps {
   memberId: string;
+  colocationId: string;
   currentStatus: PresenceStatus;
   returnDate?: string | null;
 }
 
 export function PresenceToggle({
   memberId,
+  colocationId,
   currentStatus,
   returnDate,
 }: PresenceToggleProps) {
   const [status, setStatus] = useState<PresenceStatus>(currentStatus);
   const supabase = createClient();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Canal dédié au broadcast de présence
+  useEffect(() => {
+    const channel = supabase
+      .channel(`coloc-refresh:${colocationId}`)
+      .subscribe();
+    channelRef.current = channel;
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [colocationId, supabase]);
 
   const handleStatusChange = async (newStatus: PresenceStatus) => {
     const prev = status;
@@ -40,6 +55,12 @@ export function PresenceToggle({
       setStatus(prev);
       toast.error("Impossible de mettre à jour votre statut");
     } else {
+      // Broadcast : les autres utilisateurs verront le changement via router.refresh()
+      await channelRef.current?.send({
+        type: "broadcast",
+        event: "refresh",
+        payload: {},
+      });
       toast.success("Statut mis à jour");
     }
   };

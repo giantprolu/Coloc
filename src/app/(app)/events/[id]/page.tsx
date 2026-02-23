@@ -132,7 +132,7 @@ export default async function EventPage({ params }: EventPageProps) {
                 <Pencil className="h-4 w-4" aria-hidden="true" />
               </Button>
             </Link>
-            <DeleteEventButton eventId={id} />
+            <DeleteEventButton eventId={id} colocationId={member.colocation_id} />
           </div>
         )}
       </div>
