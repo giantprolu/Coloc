@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ChatWindow } from "@/components/chat/ChatWindow";
+import { ensureGeneralChannel } from "@/app/actions/chat";
 
 export default async function ChatPage() {
   const supabase = await createClient();
@@ -18,18 +19,13 @@ export default async function ChatPage() {
 
   if (!member) redirect("/onboarding");
 
-  // Canal général de la coloc
-  const { data: channel } = await supabase
-    .from("chat_channels")
-    .select("*")
-    .eq("colocation_id", member.colocation_id)
-    .eq("type", "general")
-    .single();
+  // Canal général — créé automatiquement s'il n'existe pas encore
+  const channel = await ensureGeneralChannel(member.colocation_id);
 
   if (!channel) {
     return (
       <div className="flex h-[calc(100vh-80px)] items-center justify-center">
-        <p className="text-gray-500">Canal de chat introuvable</p>
+        <p className="text-gray-500">Impossible d&apos;accéder au chat</p>
       </div>
     );
   }

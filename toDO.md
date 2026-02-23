@@ -1,7 +1,0 @@
-- [ ] le input de 'Nombre d'invités' doit être vide au départ
-- [ ] revoir les input pour qu'il soit correctement responsive côte à côte
-- [ ] il faut que si il y a 6 personnes dans la coloc et que les 6 votes alors on ferme le vote
-- [ ] le chat ne fonctionne pas il faut revoir ça 
-- [ ] il faut que toutes les actions qui déclanche un changement visuel, je ne dois pas être obligé de rafraichir la page
-- [ ] il faut optimiser fortement l'app parce quelle est super lente
-- [ ] n'oublie pas de mettre en place le rgaa 
