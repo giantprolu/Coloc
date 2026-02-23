@@ -127,6 +127,44 @@ export async function closeExpiredVotesForEvent(eventId: string): Promise<void> 
 }
 
 /**
+ * Clôture un vote si tous les membres de la colocation ont voté.
+ * Appelée côté client après chaque soumission de bulletin.
+ * Retourne true si le vote a été clôturé.
+ */
+export async function closeVoteIfAllVoted(
+  voteId: string,
+  colocationId: string
+): Promise<boolean> {
+  const supabase = createAdminClient();
+
+  const { count: memberCount } = await supabase
+    .from("members")
+    .select("*", { count: "exact", head: true })
+    .eq("colocation_id", colocationId);
+
+  if (!memberCount) return false;
+
+  const { count: ballotCount } = await supabase
+    .from("vote_ballots")
+    .select("*", { count: "exact", head: true })
+    .eq("vote_id", voteId);
+
+  if ((ballotCount ?? 0) < memberCount) return false;
+
+  const { data: vote } = await supabase
+    .from("votes")
+    .select("*, ballots:vote_ballots(*), event:events(colocation_id, title)")
+    .eq("id", voteId)
+    .eq("status", "open")
+    .single();
+
+  if (!vote) return false;
+
+  await processExpiredVote(supabase, vote as ExpiredVote);
+  return true;
+}
+
+/**
  * Clôture paresseuse de tous les votes expirés d'une colocation.
  * Appelée à chaque chargement de la page votes.
  */

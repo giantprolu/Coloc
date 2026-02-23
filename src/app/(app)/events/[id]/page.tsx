@@ -48,39 +48,46 @@ export default async function EventPage({ params }: EventPageProps) {
 
   if (!member) redirect("/onboarding");
 
-  // Récupère l'événement avec toutes ses relations
-  const { data: event } = await supabase
-    .from("events")
-    .select(`
-      *,
-      creator:members!events_created_by_fkey(*),
-      spaces:event_spaces(space:spaces(*)),
-      reactions:event_reactions(*, member:members(*))
-    `)
-    .eq("id", id)
-    .eq("colocation_id", member.colocation_id)
-    .single();
+  // Récupère en parallèle l'événement, le vote actif, le canal chat et le nombre de membres
+  const [
+    { data: event },
+    { data: activeVote },
+    { data: eventChannel },
+    { count: memberCount },
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select(`
+        *,
+        creator:members!events_created_by_fkey(*),
+        spaces:event_spaces(space:spaces(*)),
+        reactions:event_reactions(*, member:members(*))
+      `)
+      .eq("id", id)
+      .eq("colocation_id", member.colocation_id)
+      .single(),
+    supabase
+      .from("votes")
+      .select(`
+        *,
+        initiator:members!votes_initiated_by_fkey(display_name),
+        ballots:vote_ballots(*, member:members(display_name))
+      `)
+      .eq("event_id", id)
+      .eq("status", "open")
+      .single(),
+    supabase
+      .from("chat_channels")
+      .select("id")
+      .eq("event_id", id)
+      .single(),
+    supabase
+      .from("members")
+      .select("*", { count: "exact", head: true })
+      .eq("colocation_id", member.colocation_id),
+  ]);
 
   if (!event) notFound();
-
-  // Récupère le vote actif
-  const { data: activeVote } = await supabase
-    .from("votes")
-    .select(`
-      *,
-      initiator:members!votes_initiated_by_fkey(display_name),
-      ballots:vote_ballots(*, member:members(display_name))
-    `)
-    .eq("event_id", id)
-    .eq("status", "open")
-    .single();
-
-  // Canal de chat dédié à l'événement
-  const { data: eventChannel } = await supabase
-    .from("chat_channels")
-    .select("id")
-    .eq("event_id", id)
-    .single();
 
   const isCreator = event.created_by === member.id;
   const userReaction = event.reactions?.find(
@@ -100,9 +107,9 @@ export default async function EventPage({ params }: EventPageProps) {
     <div className="space-y-4 p-4">
       {/* Navigation */}
       <div className="flex items-center gap-3 pt-2">
-        <Link href="/calendar">
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <ArrowLeft className="h-4 w-4" />
+        <Link href="/calendar" aria-label="Retour au calendrier">
+          <Button variant="ghost" size="icon" aria-label="Retour au calendrier" className="h-8 w-8">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
         </Link>
         <div className="flex-1">
@@ -120,9 +127,9 @@ export default async function EventPage({ params }: EventPageProps) {
         </div>
         {isCreator && (
           <div className="flex gap-1">
-            <Link href={`/events/${id}/edit`}>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Pencil className="h-4 w-4" />
+            <Link href={`/events/${id}/edit`} aria-label="Modifier l'événement">
+              <Button variant="ghost" size="icon" aria-label="Modifier l'événement" className="h-8 w-8">
+                <Pencil className="h-4 w-4" aria-hidden="true" />
               </Button>
             </Link>
             <DeleteEventButton eventId={id} />
@@ -184,6 +191,7 @@ export default async function EventPage({ params }: EventPageProps) {
           vote={activeVote}
           currentMemberId={member.id}
           colocationId={member.colocation_id}
+          totalMembers={memberCount ?? 0}
         />
       )}
 

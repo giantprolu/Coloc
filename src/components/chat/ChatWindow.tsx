@@ -108,9 +108,10 @@ export function ChatWindow({ channel, currentMember, colocationId }: ChatWindowP
           <button
             type="button"
             onClick={() => setReplyTo(null)}
+            aria-label="Annuler la réponse"
             className="text-gray-400 hover:text-gray-600"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -142,9 +143,10 @@ export function ChatWindow({ channel, currentMember, colocationId }: ChatWindowP
           type="submit"
           size="icon"
           disabled={!input.trim()}
+          aria-label="Envoyer le message"
           className="bg-indigo-600 hover:bg-indigo-700 flex-shrink-0"
         >
-          <Send className="h-4 w-4" />
+          <Send className="h-4 w-4" aria-hidden="true" />
         </Button>
       </form>
     </div>

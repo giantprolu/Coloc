@@ -36,60 +36,47 @@ export default async function DashboardPage() {
 
   const colocationId = member.colocation_id;
 
-  // Récupère les prochains événements (7 prochains jours)
-  const { data: upcomingEvents } = await supabase
-    .from("events")
-    .select(`
-      *,
-      creator:members!events_created_by_fkey(*),
-      spaces:event_spaces(space:spaces(*)),
-      reactions:event_reactions(*)
-    `)
-    .eq("colocation_id", colocationId)
-    .neq("status", "cancelled")
-    .gte("start_at", new Date().toISOString())
-    .order("start_at", { ascending: true })
-    .limit(5);
-
-  // Récupère les votes ouverts
-  const { data: openVotes } = await supabase
-    .from("votes")
-    .select(`
-      *,
-      event:events(*),
-      ballots:vote_ballots(*)
-    `)
-    .eq("status", "open")
-    .in(
-      "event_id",
-      (upcomingEvents || []).map((e) => e.id).concat(["00000000-0000-0000-0000-000000000000"])
-    );
-
-  // Récupère tous les votes ouverts de la coloc
-  const { data: allOpenVotes } = await supabase
-    .from("votes")
-    .select(`
-      *,
-      event:events(*),
-      ballots:vote_ballots(id, member_id, choice)
-    `)
-    .eq("status", "open")
-    .eq("events.colocation_id", colocationId);
-
-  // Récupère les membres de la coloc avec leur présence
-  const { data: colocMembers } = await supabase
-    .from("members")
-    .select("*")
-    .eq("colocation_id", colocationId)
-    .order("display_name");
-
-  // Récupère les derniers messages du chat général
-  const { data: generalChannel } = await supabase
-    .from("chat_channels")
-    .select("id")
-    .eq("colocation_id", colocationId)
-    .eq("type", "general")
-    .single();
+  // Récupère toutes les données en parallèle
+  const [
+    { data: upcomingEvents },
+    { data: allOpenVotes },
+    { data: colocMembers },
+    { data: generalChannel },
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select(`
+        *,
+        creator:members!events_created_by_fkey(*),
+        spaces:event_spaces(space:spaces(*)),
+        reactions:event_reactions(*)
+      `)
+      .eq("colocation_id", colocationId)
+      .neq("status", "cancelled")
+      .gte("start_at", new Date().toISOString())
+      .order("start_at", { ascending: true })
+      .limit(5),
+    supabase
+      .from("votes")
+      .select(`
+        *,
+        event:events(*),
+        ballots:vote_ballots(id, member_id, choice)
+      `)
+      .eq("status", "open")
+      .eq("events.colocation_id", colocationId),
+    supabase
+      .from("members")
+      .select("*")
+      .eq("colocation_id", colocationId)
+      .order("display_name"),
+    supabase
+      .from("chat_channels")
+      .select("id")
+      .eq("colocation_id", colocationId)
+      .eq("type", "general")
+      .single(),
+  ]);
 
   const { data: recentMessages } = generalChannel
     ? await supabase

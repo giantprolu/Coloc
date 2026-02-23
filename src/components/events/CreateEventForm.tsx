@@ -41,7 +41,7 @@ export function CreateEventForm({
   const [description, setDescription] = useState("");
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
-  const [guestCount, setGuestCount] = useState(0);
+  const [guestCount, setGuestCount] = useState<number | "">("");
   const [noiseLevel, setNoiseLevel] = useState<NoiseLevel>("moderate");
   const [selectedSpaces, setSelectedSpaces] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<{ message: string }[]>([]);
@@ -58,7 +58,7 @@ export function CreateEventForm({
       description,
       start_at: new Date(startAt).toISOString(),
       end_at: new Date(endAt).toISOString(),
-      guest_count: guestCount,
+      guest_count: guestCount === "" ? 0 : guestCount,
       noise_level: noiseLevel,
       status: "confirmed" as const,
       created_at: new Date().toISOString(),
@@ -124,7 +124,7 @@ export function CreateEventForm({
           description: description || null,
           start_at: new Date(startAt).toISOString(),
           end_at: new Date(endAt).toISOString(),
-          guest_count: guestCount,
+          guest_count: guestCount === "" ? 0 : guestCount,
           noise_level: noiseLevel,
         })
         .select()
@@ -205,7 +205,7 @@ export function CreateEventForm({
 
       {/* Dates */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <Label htmlFor="startAt">Début *</Label>
           <Input
             id="startAt"
@@ -215,10 +215,11 @@ export function CreateEventForm({
               setStartAt(e.target.value);
               checkRules();
             }}
+            className="w-full text-sm"
             required
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <Label htmlFor="endAt">Fin *</Label>
           <Input
             id="endAt"
@@ -229,6 +230,7 @@ export function CreateEventForm({
               setEndAt(e.target.value);
               checkRules();
             }}
+            className="w-full text-sm"
             required
           />
         </div>
@@ -236,23 +238,28 @@ export function CreateEventForm({
 
       {/* Invités et niveau sonore */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <Label htmlFor="guestCount">Nombre d&apos;invités</Label>
           <Input
             id="guestCount"
             type="number"
             min={0}
+            placeholder="0"
             value={guestCount}
-            onChange={(e) => setGuestCount(parseInt(e.target.value) || 0)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setGuestCount(v === "" ? "" : Math.max(0, parseInt(v) || 0));
+            }}
+            className="w-full"
           />
         </div>
-        <div className="space-y-2">
-          <Label>Niveau sonore</Label>
+        <div className="space-y-2 min-w-0">
+          <Label htmlFor="noiseLevel">Niveau sonore</Label>
           <Select
             value={noiseLevel}
             onValueChange={(v) => setNoiseLevel(v as NoiseLevel)}
           >
-            <SelectTrigger>
+            <SelectTrigger id="noiseLevel" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -267,26 +274,30 @@ export function CreateEventForm({
       {/* Espaces */}
       {spaces.length > 0 && (
         <div className="space-y-2">
-          <Label>Espaces réservés</Label>
-          <div className="flex flex-wrap gap-2">
-            {spaces.map((space) => (
+          <Label id="spaces-label">Espaces réservés</Label>
+          <div className="flex flex-wrap gap-2" role="group" aria-labelledby="spaces-label">
+            {spaces.map((space) => {
+              const isSelected = selectedSpaces.includes(space.id);
+              return (
               <button
                 key={space.id}
                 type="button"
                 onClick={() => toggleSpace(space.id)}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors border ${
-                  selectedSpaces.includes(space.id)
+                aria-pressed={isSelected}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                  isSelected
                     ? "bg-indigo-100 border-indigo-300 text-indigo-800"
                     : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                {space.icon && <span>{space.icon}</span>}
+                {space.icon && <span aria-hidden="true">{space.icon}</span>}
                 {space.name}
-                {selectedSpaces.includes(space.id) && (
-                  <X className="h-3 w-3" />
+                {isSelected && (
+                  <X className="h-3 w-3" aria-hidden="true" />
                 )}
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -33,7 +33,14 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <main className="mx-auto max-w-md pb-20">{children}</main>
+      {/* Lien d'évitement — RGAA critère 12.7 */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-indigo-600 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+      >
+        Aller au contenu principal
+      </a>
+      <main id="main-content" className="mx-auto max-w-md pb-20">{children}</main>
       <BottomNav />
       <Toaster position="top-center" richColors />
     </div>

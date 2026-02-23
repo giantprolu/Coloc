@@ -42,8 +42,11 @@ export function MessageBubble({
         <div className="w-7 flex-shrink-0">
           {showAvatar && (
             <Avatar className="h-7 w-7">
-              <AvatarImage src={message.member?.avatar_url || undefined} />
-              <AvatarFallback className="text-xs bg-indigo-100 text-indigo-700">
+              <AvatarImage
+                src={message.member?.avatar_url || undefined}
+                alt={message.member?.display_name ?? ""}
+              />
+              <AvatarFallback className="text-xs bg-indigo-100 text-indigo-700" aria-hidden="true">
                 {message.member ? getInitials(message.member.display_name) : "?"}
               </AvatarFallback>
             </Avatar>
@@ -94,16 +97,18 @@ export function MessageBubble({
             {message.content}
           </div>
 
-          {/* Bouton répondre (au survol) */}
+          {/* Bouton répondre (au survol / focus) */}
           <button
+            type="button"
             onClick={() => onReply(message)}
+            aria-label={`Répondre à ${message.member?.display_name ?? "ce message"}`}
             className={cn(
-              "absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity",
+              "absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity",
               "p-1 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500",
               isOwn ? "-left-8" : "-right-8"
             )}
           >
-            <Reply className="h-3 w-3" />
+            <Reply className="h-3 w-3" aria-hidden="true" />
           </button>
         </div>
 
