@@ -3,10 +3,8 @@
 export type UserRole = "admin" | "member";
 export type PresenceStatus = "home" | "away_tonight" | "traveling";
 export type NoiseLevel = "quiet" | "moderate" | "festive";
-export type EventStatus = "confirmed" | "contested" | "cancelled" | "vote_approved";
+export type EventStatus = "confirmed" | "cancelled";
 export type ReactionType = "thumbs_up" | "party" | "neutral" | "thumbs_down" | "oppose";
-export type VoteStatus = "open" | "approved" | "rejected" | "expired";
-export type VoteChoice = "approve" | "reject" | "abstain";
 export type ChannelType = "general" | "event";
 export type ChoreFrequency = "daily" | "weekly" | "biweekly" | "monthly";
 
@@ -55,7 +53,6 @@ export interface Event {
   creator?: Member;
   spaces?: Space[];
   reactions?: EventReaction[];
-  votes?: Vote[];
 }
 
 export interface EventSpace {
@@ -68,30 +65,6 @@ export interface EventReaction {
   event_id: string;
   member_id: string;
   reaction: ReactionType;
-  created_at: string;
-  // Relation jointe
-  member?: Member;
-}
-
-export interface Vote {
-  id: string;
-  event_id: string;
-  initiated_by: string | null;
-  reason: string | null;
-  status: VoteStatus;
-  closes_at: string;
-  created_at: string;
-  // Relations jointes
-  ballots?: VoteBallot[];
-  initiator?: Member;
-  event?: Event;
-}
-
-export interface VoteBallot {
-  id: string;
-  vote_id: string;
-  member_id: string;
-  choice: VoteChoice;
   created_at: string;
   // Relation jointe
   member?: Member;
@@ -206,8 +179,6 @@ export interface NotificationPreferences {
   events_new: boolean;
   events_modified: boolean;
   events_reminder: boolean;
-  votes_new: boolean;
-  votes_result: boolean;
   chat_all: boolean;
   chat_mentions: boolean;
   chores_reminder: boolean;
@@ -215,14 +186,6 @@ export interface NotificationPreferences {
 }
 
 // ============ TYPES UTILITAIRES ============
-
-export interface VoteResults {
-  approve: number;
-  reject: number;
-  abstain: number;
-  total: number;
-  result: "approved" | "rejected" | "tie";
-}
 
 export interface MemberBalance {
   member: Member;

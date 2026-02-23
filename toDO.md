@@ -1,0 +1,6 @@
+- [x] supprimer tout ce qui est vote etc
+- [x] mettre la page dépenses et règles de la coloc accessible rapidement pas dans les réglages
+- [x] mettre anonces de façon a ce que ça puisse être lu et vu juste a l'ouverture de l'app un peu comme un post-it
+- [x] il faut que l'utilisateur admin puisse donner le rôle admin a d'autres
+- [x] il faut que je puisse en tant qu'admin supprimer tout les évènement passé ou annulé
+- [x] Debugger le chat car il ne fonctionne absolument pas

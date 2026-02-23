@@ -191,10 +191,10 @@ export function CalendarView({ events, memberId }: CalendarViewProps) {
                     )}
                   </div>
                   <Badge
-                    variant={event.status === "contested" ? "destructive" : "secondary"}
+                    variant="secondary"
                     className="text-xs"
                   >
-                    {event.status === "contested" ? "Contesté" : "Confirmé"}
+                    Confirmé
                   </Badge>
                 </div>
               </Link>

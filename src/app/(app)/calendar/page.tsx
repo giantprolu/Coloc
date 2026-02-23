@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { CalendarView } from "@/components/CalendarView";
+import { CleanupEventsButton } from "@/components/events/CleanupEventsButton";
 
 export default async function CalendarPage() {
   const supabase = await createClient();
@@ -12,7 +13,7 @@ export default async function CalendarPage() {
 
   const { data: member } = await supabase
     .from("members")
-    .select("id, colocation_id")
+    .select("id, colocation_id, role")
     .eq("user_id", user.id)
     .single();
 
@@ -43,6 +44,9 @@ export default async function CalendarPage() {
     <div className="p-4">
       <div className="flex items-center justify-between mb-4 pt-2">
         <h1 className="text-xl font-bold text-gray-900">Calendrier</h1>
+        {member.role === "admin" && (
+          <CleanupEventsButton colocationId={member.colocation_id} />
+        )}
       </div>
       <CalendarView events={events || []} memberId={member.id} />
     </div>

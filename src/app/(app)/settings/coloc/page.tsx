@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { CopyInviteCode } from "@/components/CopyInviteCode";
+import { MemberRoleButton } from "@/components/MemberRoleButton";
 import { ArrowLeft, Users, MapPin, Shield } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export default async function ColocSettingsPage() {
   if (!member) redirect("/onboarding");
 
   const coloc = member.colocation as { id: string; name: string; invite_code: string } | null;
+  const isAdmin = member.role === "admin";
 
   const { data: members } = await supabase
     .from("members")
@@ -109,9 +111,18 @@ export default async function ColocSettingsPage() {
                   </span>
                 </div>
               </div>
-              <Badge variant="outline" className="text-xs capitalize">
-                {m.role === "admin" ? "Admin" : "Membre"}
-              </Badge>
+              <div className="flex items-center gap-1">
+                <Badge variant="outline" className="text-xs capitalize">
+                  {m.role === "admin" ? "Admin" : "Membre"}
+                </Badge>
+                {isAdmin && m.id !== member.id && (
+                  <MemberRoleButton
+                    memberId={m.id}
+                    currentRole={m.role}
+                    memberName={m.display_name}
+                  />
+                )}
+              </div>
             </div>
           ))}
         </CardContent>
@@ -133,7 +144,7 @@ export default async function ColocSettingsPage() {
               </Badge>
             ))}
           </div>
-          {member.role === "admin" && (
+          {isAdmin && (
             <p className="text-xs text-gray-400 mt-3">
               Fonctionnalité d&apos;ajout d&apos;espaces à venir
             </p>

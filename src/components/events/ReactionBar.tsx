@@ -88,46 +88,6 @@ export function ReactionBar({
         });
       }
 
-      // Si ❌ opposition, propose un vote automatiquement
-      if (reaction === "oppose" && prev !== "oppose") {
-        const { data: existingVote } = await supabase
-          .from("votes")
-          .select("id")
-          .eq("event_id", eventId)
-          .eq("status", "open")
-          .single();
-
-        if (!existingVote) {
-          const closes_at = new Date();
-          closes_at.setHours(closes_at.getHours() + 24);
-
-          const { error: voteError } = await supabase.from("votes").insert({
-            event_id: eventId,
-            initiated_by: memberId,
-            reason: "Opposition d'un colocataire",
-            closes_at: closes_at.toISOString(),
-          });
-
-          if (!voteError) {
-            // Notifie les colocataires
-            await fetch("/api/push/send", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                colocationId,
-                type: "vote_new",
-                eventId,
-                title: "Vote ouvert !",
-                body: "Un colocataire s'oppose à un événement. Votez !",
-              }),
-            });
-
-            toast.warning(
-              "Un vote a été ouvert automatiquement suite à votre opposition"
-            );
-          }
-        }
-      }
     } catch {
       // Rollback
       setUserReaction(prev);

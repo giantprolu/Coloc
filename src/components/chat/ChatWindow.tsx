@@ -41,8 +41,11 @@ export function ChatWindow({ channel, currentMember, colocationId }: ChatWindowP
       await sendMessage(input.trim(), replyTo?.id);
       setInput("");
       setReplyTo(null);
-    } catch {
-      toast.error("Impossible d'envoyer le message");
+    } catch (err) {
+      console.error("Chat send error:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Impossible d'envoyer le message"
+      );
     }
   };
 

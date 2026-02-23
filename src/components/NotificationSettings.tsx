@@ -27,13 +27,6 @@ const prefGroups: {
     ],
   },
   {
-    title: "Votes",
-    items: [
-      { key: "votes_new", label: "Nouveau vote ouvert" },
-      { key: "votes_result", label: "Résultat d'un vote" },
-    ],
-  },
-  {
     title: "Chat",
     items: [
       { key: "chat_all", label: "Tous les messages" },

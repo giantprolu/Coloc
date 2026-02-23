@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReactionBar } from "@/components/events/ReactionBar";
-import { VoteCard } from "@/components/votes/VoteCard";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -18,7 +17,6 @@ import {
   Pencil,
 } from "lucide-react";
 import { DeleteEventButton } from "@/components/events/DeleteEventButton";
-import { closeExpiredVotesForEvent } from "@/app/actions/votes";
 
 interface EventPageProps {
   params: Promise<{ id: string }>;
@@ -26,12 +24,6 @@ interface EventPageProps {
 
 export default async function EventPage({ params }: EventPageProps) {
   const { id } = await params;
-
-  // Clôture paresseuse : ferme les votes expirés à chaque chargement de la page
-  // (remplace le cron */15 qui n'est pas disponible sur le plan Hobby Vercel)
-  await closeExpiredVotesForEvent(id).catch(() => {
-    // Silencieux : on ne bloque pas l'affichage si ça échoue
-  });
 
   const supabase = await createClient();
 
@@ -42,18 +34,16 @@ export default async function EventPage({ params }: EventPageProps) {
 
   const { data: member } = await supabase
     .from("members")
-    .select("*")
+    .select("*, role")
     .eq("user_id", user.id)
     .single();
 
   if (!member) redirect("/onboarding");
 
-  // Récupère en parallèle l'événement, le vote actif, le canal chat et le nombre de membres
+  // Récupère en parallèle l'événement et le canal chat
   const [
     { data: event },
-    { data: activeVote },
     { data: eventChannel },
-    { count: memberCount },
   ] = await Promise.all([
     supabase
       .from("events")
@@ -67,38 +57,23 @@ export default async function EventPage({ params }: EventPageProps) {
       .eq("colocation_id", member.colocation_id)
       .single(),
     supabase
-      .from("votes")
-      .select(`
-        *,
-        initiator:members!votes_initiated_by_fkey(display_name),
-        ballots:vote_ballots(*, member:members(display_name))
-      `)
-      .eq("event_id", id)
-      .eq("status", "open")
-      .single(),
-    supabase
       .from("chat_channels")
       .select("id")
       .eq("event_id", id)
       .single(),
-    supabase
-      .from("members")
-      .select("*", { count: "exact", head: true })
-      .eq("colocation_id", member.colocation_id),
   ]);
 
   if (!event) notFound();
 
   const isCreator = event.created_by === member.id;
+  const isAdmin = member.role === "admin";
   const userReaction = event.reactions?.find(
     (r: { member_id: string }) => r.member_id === member.id
   );
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     confirmed: { label: "Confirmé", color: "bg-green-100 text-green-800" },
-    contested: { label: "Contesté", color: "bg-red-100 text-red-800" },
     cancelled: { label: "Annulé", color: "bg-gray-100 text-gray-600" },
-    vote_approved: { label: "Approuvé par vote", color: "bg-indigo-100 text-indigo-800" },
   };
 
   const statusInfo = statusLabels[event.status] || statusLabels.confirmed;
@@ -125,13 +100,15 @@ export default async function EventPage({ params }: EventPageProps) {
             Par {event.creator?.display_name || "Quelqu'un"}
           </p>
         </div>
-        {isCreator && (
+        {(isCreator || isAdmin) && (
           <div className="flex gap-1">
-            <Link href={`/events/${id}/edit`} aria-label="Modifier l'événement">
-              <Button variant="ghost" size="icon" aria-label="Modifier l'événement" className="h-8 w-8">
-                <Pencil className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </Link>
+            {isCreator && (
+              <Link href={`/events/${id}/edit`} aria-label="Modifier l'événement">
+                <Button variant="ghost" size="icon" aria-label="Modifier l'événement" className="h-8 w-8">
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </Link>
+            )}
             <DeleteEventButton eventId={id} colocationId={member.colocation_id} />
           </div>
         )}
@@ -184,16 +161,6 @@ export default async function EventPage({ params }: EventPageProps) {
           )}
         </CardContent>
       </Card>
-
-      {/* Vote actif */}
-      {activeVote && (
-        <VoteCard
-          vote={activeVote}
-          currentMemberId={member.id}
-          colocationId={member.colocation_id}
-          totalMembers={memberCount ?? 0}
-        />
-      )}
 
       {/* Réactions */}
       <Card>

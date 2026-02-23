@@ -76,41 +76,6 @@ export function subscribeToChatChannel(
   return channel;
 }
 
-// Crée un channel pour les votes
-export function subscribeToVotes(
-  colocationId: string,
-  callbacks: {
-    onVoteChange?: (payload: unknown) => void;
-    onBallotChange?: (payload: unknown) => void;
-  }
-): RealtimeChannel {
-  const supabase = createClient();
-
-  const channel = supabase
-    .channel(`coloc:${colocationId}:votes`)
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "votes",
-      },
-      (payload) => callbacks.onVoteChange?.(payload)
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "vote_ballots",
-      },
-      (payload) => callbacks.onBallotChange?.(payload)
-    )
-    .subscribe();
-
-  return channel;
-}
-
 // Crée un channel pour la présence
 export function subscribeToPresence(
   colocationId: string,

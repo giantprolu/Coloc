@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ChatMessage, Member } from "@/types";
+import { sendChatMessage } from "@/app/actions/chat";
 
 interface UseRealtimeChatOptions {
   channelId: string;
@@ -140,7 +141,7 @@ export function useRealtimeChat({
     };
   }, [channelId, supabase, mergeMessages]);
 
-  // ─── Envoi avec mise à jour optimiste + broadcast ─────────────────────────
+  // ─── Envoi avec mise à jour optimiste + server action + broadcast ────────
   const sendMessage = useCallback(
     async (content: string, replyTo?: string) => {
       const tempId = `optimistic-${Date.now()}`;
@@ -157,18 +158,8 @@ export function useRealtimeChat({
       setMessages((prev) => [...prev, optimistic]);
 
       try {
-        const { data, error } = await supabase
-          .from("chat_messages")
-          .insert({
-            channel_id: channelId,
-            member_id: currentMember.id,
-            content,
-            reply_to: replyTo || null,
-          })
-          .select("id, created_at")
-          .single();
-
-        if (error) throw error;
+        // Utilise la server action pour bypasser RLS
+        const data = await sendChatMessage(channelId, content, replyTo);
 
         // Remplace tempId par le vrai ID
         setMessages((prev) =>
@@ -186,11 +177,12 @@ export function useRealtimeChat({
           payload: { id: data.id },
         });
       } catch (err) {
+        console.error("Chat send error:", err);
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         throw err;
       }
     },
-    [channelId, currentMember, supabase]
+    [channelId, currentMember]
   );
 
   return { messages, isLoading, sendMessage };

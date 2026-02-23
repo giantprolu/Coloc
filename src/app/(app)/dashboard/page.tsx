@@ -11,8 +11,11 @@ import {
   CalendarDays,
   MessageSquare,
   Plus,
-  Vote,
   Bell,
+  Wallet,
+  BookOpen,
+  Megaphone,
+  Pin,
 } from "lucide-react";
 import { NOISE_LEVEL_LABELS, PRESENCE_LABELS } from "@/types";
 
@@ -39,9 +42,9 @@ export default async function DashboardPage() {
   // Récupère toutes les données en parallèle
   const [
     { data: upcomingEvents },
-    { data: allOpenVotes },
     { data: colocMembers },
     { data: generalChannel },
+    { data: announcements },
   ] = await Promise.all([
     supabase
       .from("events")
@@ -57,15 +60,6 @@ export default async function DashboardPage() {
       .order("start_at", { ascending: true })
       .limit(5),
     supabase
-      .from("votes")
-      .select(`
-        *,
-        event:events(*),
-        ballots:vote_ballots(id, member_id, choice)
-      `)
-      .eq("status", "open")
-      .eq("events.colocation_id", colocationId),
-    supabase
       .from("members")
       .select("*")
       .eq("colocation_id", colocationId)
@@ -76,6 +70,14 @@ export default async function DashboardPage() {
       .eq("colocation_id", colocationId)
       .eq("type", "general")
       .single(),
+    supabase
+      .from("announcements")
+      .select("*, member:members(display_name)")
+      .eq("colocation_id", colocationId)
+      .gte("expires_at", new Date().toISOString())
+      .order("pinned", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
 
   const { data: recentMessages } = generalChannel
@@ -115,6 +117,66 @@ export default async function DashboardPage() {
         currentStatus={member.presence_status}
         returnDate={member.presence_return_date}
       />
+
+      {/* Annonces (style post-it) */}
+      {announcements && announcements.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+              <Megaphone className="h-4 w-4" />
+              Annonces
+            </h2>
+            <Link
+              href="/announcements"
+              className="text-xs text-amber-600 hover:text-amber-800 font-medium"
+            >
+              Voir tout →
+            </Link>
+          </div>
+          {announcements.map((ann) => (
+            <div
+              key={ann.id}
+              className="rounded-lg border border-amber-200 bg-amber-50 p-3 shadow-sm"
+            >
+              <div className="flex items-start gap-2">
+                {ann.pinned && (
+                  <Pin className="h-3.5 w-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-amber-900 whitespace-pre-line">
+                    {ann.content}
+                  </p>
+                  <p className="text-xs text-amber-600 mt-1">
+                    {ann.member?.display_name || "Quelqu'un"} · {formatRelative(ann.created_at)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Accès rapide */}
+      <div className="grid grid-cols-3 gap-2">
+        <Link href="/expenses">
+          <div className="flex flex-col items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-100 p-3 hover:bg-emerald-100 transition-colors">
+            <Wallet className="h-5 w-5 text-emerald-600" />
+            <span className="text-xs font-medium text-emerald-700">Dépenses</span>
+          </div>
+        </Link>
+        <Link href="/rules">
+          <div className="flex flex-col items-center gap-1.5 rounded-xl bg-blue-50 border border-blue-100 p-3 hover:bg-blue-100 transition-colors">
+            <BookOpen className="h-5 w-5 text-blue-600" />
+            <span className="text-xs font-medium text-blue-700">Règles</span>
+          </div>
+        </Link>
+        <Link href="/announcements">
+          <div className="flex flex-col items-center gap-1.5 rounded-xl bg-amber-50 border border-amber-100 p-3 hover:bg-amber-100 transition-colors">
+            <Megaphone className="h-5 w-5 text-amber-600" />
+            <span className="text-xs font-medium text-amber-700">Annonces</span>
+          </div>
+        </Link>
+      </div>
 
       {/* Ce soir */}
       {upcomingEvents && upcomingEvents.length > 0 && (
@@ -166,52 +228,6 @@ export default async function DashboardPage() {
                 className="block text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
               >
                 Voir tous les événements →
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Votes en cours */}
-      {allOpenVotes && allOpenVotes.length > 0 && (
-        <Card className="border-orange-100 bg-orange-50">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-orange-800">
-              <Vote className="h-4 w-4" />
-              Votes en cours ({allOpenVotes.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {allOpenVotes.slice(0, 2).map((vote) => {
-              const userVoted = vote.ballots?.some(
-                (b: { member_id: string }) => b.member_id === member.id
-              );
-              return (
-                <Link key={vote.id} href={`/events/${vote.event?.id}`}>
-                  <div className="rounded-lg bg-white p-3 shadow-sm flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {vote.event?.title}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {vote.ballots?.length || 0} vote{(vote.ballots?.length || 0) > 1 ? "s" : ""} exprimé{(vote.ballots?.length || 0) > 1 ? "s" : ""}
-                      </p>
-                    </div>
-                    {!userVoted && (
-                      <Badge variant="destructive" className="text-xs">
-                        À voter
-                      </Badge>
-                    )}
-                  </div>
-                </Link>
-              );
-            })}
-            {allOpenVotes.length > 2 && (
-              <Link
-                href="/votes"
-                className="block text-center text-sm text-orange-600 hover:text-orange-800 font-medium"
-              >
-                Voir tous les votes →
               </Link>
             )}
           </CardContent>
