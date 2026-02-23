@@ -1,0 +1,88 @@
+import { createClient } from "@supabase/supabase-js";
+import { sendPushToMany } from "@/lib/push";
+import { NextResponse } from "next/server";
+import { formatEventDate } from "@/lib/utils";
+
+function createAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+// Cron : envoie des rappels 24h avant chaque événement
+export async function GET(request: Request) {
+  // Vérifie le secret cron
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
+
+  const supabase = createAdminClient();
+
+  const now = new Date();
+  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const in25h = new Date(now.getTime() + 25 * 60 * 60 * 1000);
+
+  // Événements qui commencent dans 24-25h
+  const { data: events } = await supabase
+    .from("events")
+    .select("*, colocation:colocations(*)")
+    .gte("start_at", in24h.toISOString())
+    .lte("start_at", in25h.toISOString())
+    .neq("status", "cancelled");
+
+  let totalSent = 0;
+
+  for (const event of events || []) {
+    const { data: members } = await supabase
+      .from("members")
+      .select("id")
+      .eq("colocation_id", event.colocation_id);
+
+    if (!members?.length) continue;
+
+    // Filtre les membres qui ont activé les rappels
+    const { data: prefs } = await supabase
+      .from("notification_preferences")
+      .select("member_id")
+      .in(
+        "member_id",
+        members.map((m) => m.id)
+      )
+      .eq("events_reminder", true);
+
+    if (!prefs?.length) continue;
+
+    const prefMemberIds = prefs.map((p) => p.member_id);
+
+    const { data: subscriptions } = await supabase
+      .from("push_subscriptions")
+      .select("*")
+      .in("member_id", prefMemberIds);
+
+    if (!subscriptions?.length) continue;
+
+    const result = await sendPushToMany(
+      subscriptions.map((s) => ({
+        endpoint: s.endpoint,
+        p256dh: s.p256dh,
+        auth: s.auth,
+      })),
+      {
+        title: `Rappel : ${event.title} demain`,
+        body: `${formatEventDate(event.start_at, event.end_at)}`,
+        url: `/events/${event.id}`,
+        tag: "event_reminder",
+      }
+    );
+
+    totalSent += result.success;
+  }
+
+  return NextResponse.json({
+    success: true,
+    processed: events?.length || 0,
+    sent: totalSent,
+  });
+}
