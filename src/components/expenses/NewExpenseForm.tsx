@@ -145,12 +145,12 @@ export function NewExpenseForm({
 
       <div className="space-y-2">
         <Label>Lié à un événement (optionnel)</Label>
-        <Select value={eventId} onValueChange={setEventId}>
+        <Select value={eventId || "none"} onValueChange={(v) => setEventId(v === "none" ? "" : v)}>
           <SelectTrigger>
             <SelectValue placeholder="Aucun événement" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Aucun événement</SelectItem>
+            <SelectItem value="none">Aucun événement</SelectItem>
             {events.map((e) => (
               <SelectItem key={e.id} value={e.id}>
                 {e.title}

@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Lock } from "lucide-react";
 
 interface RuleDefinition {
   key: string;
@@ -20,7 +19,6 @@ interface RuleDefinition {
 interface RulesEditorProps {
   colocationId: string;
   memberId: string;
-  isAdmin: boolean;
   ruleDefinitions: RuleDefinition[];
   currentRules: ColocRule[];
 }
@@ -28,7 +26,6 @@ interface RulesEditorProps {
 export function RulesEditor({
   colocationId,
   memberId,
-  isAdmin,
   ruleDefinitions,
   currentRules,
 }: RulesEditorProps) {
@@ -78,9 +75,8 @@ export function RulesEditor({
         return (
           <Card key={def.key}>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center justify-between text-sm">
-                <span>{def.label}</span>
-                {!isAdmin && <Lock className="h-3 w-3 text-gray-400" />}
+              <CardTitle className="text-sm">
+                {def.label}
               </CardTitle>
               {def.description && (
                 <p className="text-xs text-gray-500">{def.description}</p>
@@ -98,19 +94,16 @@ export function RulesEditor({
                         [def.key]: parseInt(e.target.value) || 0,
                       }))
                     }
-                    disabled={!isAdmin}
                     className="w-24"
                   />
-                  {isAdmin && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleSave(def.key)}
-                      disabled={isSaving}
-                    >
-                      Sauver
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSave(def.key)}
+                    disabled={isSaving}
+                  >
+                    Sauver
+                  </Button>
                 </div>
               )}
 
@@ -132,7 +125,6 @@ export function RulesEditor({
                           },
                         }))
                       }
-                      disabled={!isAdmin}
                       className="w-16 text-center"
                     />
                     <span className="text-xs text-gray-500">h</span>
@@ -154,21 +146,18 @@ export function RulesEditor({
                           },
                         }))
                       }
-                      disabled={!isAdmin}
                       className="w-16 text-center"
                     />
                     <span className="text-xs text-gray-500">h</span>
                   </div>
-                  {isAdmin && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleSave(def.key)}
-                      disabled={isSaving}
-                    >
-                      Sauver
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSave(def.key)}
+                    disabled={isSaving}
+                  >
+                    Sauver
+                  </Button>
                 </div>
               )}
             </CardContent>

@@ -76,7 +76,7 @@ export default async function RulesPage() {
             <BookOpen className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-amber-800">
               Les avertissements s&apos;affichent automatiquement lors de la création
-              d&apos;un événement qui ne respecte pas ces règles. Seuls les admins
+              d&apos;un événement qui ne respecte pas ces règles. Tous les colocataires
               peuvent modifier les règles.
             </p>
           </div>
@@ -86,7 +86,6 @@ export default async function RulesPage() {
       <RulesEditor
         colocationId={member.colocation_id}
         memberId={member.id}
-        isAdmin={member.role === "admin"}
         ruleDefinitions={DEFAULT_RULES}
         currentRules={rules || []}
       />

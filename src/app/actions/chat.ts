@@ -36,6 +36,26 @@ export async function ensureGeneralChannel(colocationId: string) {
 }
 
 /**
+ * Vérifie l'authentification et retourne le membre.
+ */
+async function getAuthenticatedMember() {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non authentifié");
+
+  const { data: member } = await supabase
+    .from("members")
+    .select("id, colocation_id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!member) throw new Error("Membre introuvable");
+  return member;
+}
+
+/**
  * Envoie un message dans un canal de chat.
  * Utilise le service role pour bypasser les politiques RLS.
  */
@@ -44,24 +64,11 @@ export async function sendChatMessage(
   content: string,
   replyTo?: string | null
 ) {
-  const supabase = await createServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Non authentifié");
-
-  // Récupère le membre pour vérifier l'accès
-  const { data: member } = await supabase
-    .from("members")
-    .select("id, colocation_id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!member) throw new Error("Membre introuvable");
+  const member = await getAuthenticatedMember();
 
   // Vérifie que le canal appartient à la colocation du membre
-  const { data: channel } = await supabase
+  const admin = createAdminClient();
+  const { data: channel } = await admin
     .from("chat_channels")
     .select("id, colocation_id")
     .eq("id", channelId)
@@ -71,8 +78,6 @@ export async function sendChatMessage(
     throw new Error("Canal introuvable");
   }
 
-  // Insert avec le admin client pour bypasser RLS
-  const admin = createAdminClient();
   const { data, error } = await admin
     .from("chat_messages")
     .insert({
@@ -88,6 +93,67 @@ export async function sendChatMessage(
     console.error("Chat insert error:", error);
     throw new Error("Impossible d'envoyer le message");
   }
+
+  return data;
+}
+
+/**
+ * Récupère les messages d'un canal (bypass RLS).
+ */
+export async function fetchChatMessages(
+  channelId: string,
+  limit = 50,
+  after?: string
+) {
+  const member = await getAuthenticatedMember();
+
+  const admin = createAdminClient();
+
+  // Vérifie que le canal appartient à la colocation du membre
+  const { data: channel } = await admin
+    .from("chat_channels")
+    .select("id, colocation_id")
+    .eq("id", channelId)
+    .single();
+
+  if (!channel || channel.colocation_id !== member.colocation_id) {
+    throw new Error("Canal introuvable");
+  }
+
+  let query = admin
+    .from("chat_messages")
+    .select("*, member:members(id, display_name, avatar_url)")
+    .eq("channel_id", channelId)
+    .order("created_at", { ascending: true });
+
+  if (after) {
+    query = query.gt("created_at", after);
+  } else {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Chat fetch error:", error);
+    throw new Error("Impossible de charger les messages");
+  }
+
+  return data || [];
+}
+
+/**
+ * Récupère un seul message par ID (bypass RLS).
+ */
+export async function fetchSingleMessage(messageId: string) {
+  const member = await getAuthenticatedMember();
+  const admin = createAdminClient();
+
+  const { data } = await admin
+    .from("chat_messages")
+    .select("*, member:members(id, display_name, avatar_url)")
+    .eq("id", messageId)
+    .single();
 
   return data;
 }

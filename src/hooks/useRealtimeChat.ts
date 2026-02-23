@@ -3,7 +3,11 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ChatMessage, Member } from "@/types";
-import { sendChatMessage } from "@/app/actions/chat";
+import {
+  sendChatMessage,
+  fetchChatMessages,
+  fetchSingleMessage,
+} from "@/app/actions/chat";
 
 interface UseRealtimeChatOptions {
   channelId: string;
@@ -21,7 +25,6 @@ export function useRealtimeChat({
 
   const supabase = useMemo(() => createClient(), []);
   const messagesRef = useRef<ChatMessage[]>([]);
-  // Ref vers le canal realtime pour pouvoir broadcaster depuis sendMessage
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
@@ -41,51 +44,45 @@ export function useRealtimeChat({
     });
   }, []);
 
-  // ─── Chargement initial ──────────────────────────────────────────────────
+  // ─── Chargement initial via server action ─────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
-    supabase
-      .from("chat_messages")
-      .select("*, member:members(id, display_name, avatar_url)")
-      .eq("channel_id", channelId)
-      .order("created_at", { ascending: true })
-      .limit(50)
-      .then(({ data }) => {
+    fetchChatMessages(channelId, 50)
+      .then((data) => {
         if (cancelled) return;
-        if (data) setMessages(data as ChatMessage[]);
+        setMessages(data as ChatMessage[]);
         setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("Chat initial load error:", err);
+        if (!cancelled) setIsLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [channelId, supabase]);
+  }, [channelId]);
 
   // ─── Souscription temps réel ─────────────────────────────────────────────
-  // Broadcast (primaire) + postgres_changes (backup si replication activée)
   useEffect(() => {
     const fetchAndMerge = async (id: string) => {
-      // Évite de refetcher si le message est déjà dans la liste
       if (messagesRef.current.some((m) => m.id === id)) return;
 
-      const { data } = await supabase
-        .from("chat_messages")
-        .select("*, member:members(id, display_name, avatar_url)")
-        .eq("id", id)
-        .single();
-
-      if (data) mergeMessages([data as ChatMessage]);
+      try {
+        const data = await fetchSingleMessage(id);
+        if (data) mergeMessages([data as ChatMessage]);
+      } catch (err) {
+        console.error("Chat fetch single message error:", err);
+      }
     };
 
     const realtimeChannel = supabase
       .channel(`coloc:${colocationId}:chat:${channelId}`)
-      // Broadcast — mécanisme principal, sans config Supabase requise
       .on("broadcast", { event: "new_message" }, async ({ payload }) => {
         const { id } = payload as { id: string };
         await fetchAndMerge(id);
       })
-      // postgres_changes — backup (nécessite replication activée sur Supabase)
       .on(
         "postgres_changes",
         {
@@ -109,7 +106,7 @@ export function useRealtimeChat({
     };
   }, [channelId, colocationId, supabase, mergeMessages]);
 
-  // ─── Fallback polling : tab focus + toutes les 30 secondes ──────────────
+  // ─── Fallback polling via server action ───────────────────────────────────
   useEffect(() => {
     const refetch = async () => {
       const current = messagesRef.current;
@@ -118,14 +115,12 @@ export function useRealtimeChat({
         .find((m) => !m.id.startsWith("optimistic-"));
       const since = lastReal?.created_at ?? new Date(0).toISOString();
 
-      const { data } = await supabase
-        .from("chat_messages")
-        .select("*, member:members(id, display_name, avatar_url)")
-        .eq("channel_id", channelId)
-        .gt("created_at", since)
-        .order("created_at", { ascending: true });
-
-      if (data && data.length > 0) mergeMessages(data as ChatMessage[]);
+      try {
+        const data = await fetchChatMessages(channelId, 50, since);
+        if (data.length > 0) mergeMessages(data as ChatMessage[]);
+      } catch (err) {
+        console.error("Chat polling error:", err);
+      }
     };
 
     const handleVisibility = () => {
@@ -139,9 +134,9 @@ export function useRealtimeChat({
       document.removeEventListener("visibilitychange", handleVisibility);
       clearInterval(interval);
     };
-  }, [channelId, supabase, mergeMessages]);
+  }, [channelId, mergeMessages]);
 
-  // ─── Envoi avec mise à jour optimiste + server action + broadcast ────────
+  // ─── Envoi via server action + broadcast ──────────────────────────────────
   const sendMessage = useCallback(
     async (content: string, replyTo?: string) => {
       const tempId = `optimistic-${Date.now()}`;
@@ -158,10 +153,9 @@ export function useRealtimeChat({
       setMessages((prev) => [...prev, optimistic]);
 
       try {
-        // Utilise la server action pour bypasser RLS
         const data = await sendChatMessage(channelId, content, replyTo);
 
-        // Remplace tempId par le vrai ID
+        // Remplace le message optimiste par le vrai
         setMessages((prev) =>
           prev.map((m) =>
             m.id === tempId
@@ -170,7 +164,7 @@ export function useRealtimeChat({
           )
         );
 
-        // Broadcast aux autres clients (mécanisme principal)
+        // Broadcast aux autres clients
         await channelRef.current?.send({
           type: "broadcast",
           event: "new_message",
