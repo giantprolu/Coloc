@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,24 +13,26 @@ export default function LoginPage() {
   const [isSent, setIsSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const supabase = createClient();
-
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      const res = await fetch("/api/auth/magic-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-    if (error) {
-      setError("Impossible d'envoyer le lien. Vérifiez votre adresse email.");
-    } else {
-      setIsSent(true);
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Erreur lors de l'envoi du lien.");
+      } else {
+        setIsSent(true);
+      }
+    } catch {
+      setError("Erreur réseau. Vérifiez votre connexion.");
     }
 
     setIsLoading(false);
