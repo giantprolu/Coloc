@@ -25,9 +25,6 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`,
-      },
     });
 
     if (error) {
@@ -35,7 +32,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Erreur génération du lien" }, { status: 500 });
     }
 
-    const magicLink = data.properties.action_link;
+    // Construire notre propre lien qui pointe vers NOTRE callback
+    // avec le token_hash (pas le lien Supabase qui utilise les hash fragments)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const tokenHash = data.properties.hashed_token;
+    const magicLink = `${siteUrl}/auth/callback?token_hash=${tokenHash}&type=magiclink`;
 
     // Envoie l'email via Resend
     const { error: emailError } = await resend.emails.send({
