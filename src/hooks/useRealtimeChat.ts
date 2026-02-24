@@ -2,11 +2,14 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ChatMessage, Member } from "@/types";
+import { ChatMessage, ChatMessageReaction, Member } from "@/types";
 import {
   sendChatMessage,
   fetchChatMessages,
   fetchSingleMessage,
+  toggleMessageReaction as toggleReactionAction,
+  deleteChatMessage as deleteChatMessageAction,
+  fetchReactionsForMessages,
 } from "@/app/actions/chat";
 
 interface UseRealtimeChatOptions {
@@ -44,15 +47,45 @@ export function useRealtimeChat({
     });
   }, []);
 
+  // Charge les réactions pour un ensemble de messages
+  const loadReactions = useCallback(async (msgs: ChatMessage[]) => {
+    const ids = msgs.map((m) => m.id).filter((id) => !id.startsWith("optimistic-"));
+    if (ids.length === 0) return;
+
+    try {
+      const reactions = await fetchReactionsForMessages(ids);
+      if (reactions.length === 0) return;
+
+      const reactionsByMessage = new Map<string, ChatMessageReaction[]>();
+      for (const r of reactions) {
+        const list = reactionsByMessage.get(r.message_id) || [];
+        list.push(r as ChatMessageReaction);
+        reactionsByMessage.set(r.message_id, list);
+      }
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          reactionsByMessage.has(m.id)
+            ? { ...m, reactions: reactionsByMessage.get(m.id)! }
+            : m
+        )
+      );
+    } catch (err) {
+      console.error("Error loading reactions:", err);
+    }
+  }, []);
+
   // ─── Chargement initial via server action ─────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
     fetchChatMessages(channelId, 50)
-      .then((data) => {
+      .then(async (data) => {
         if (cancelled) return;
-        setMessages(data as ChatMessage[]);
+        const msgs = data as ChatMessage[];
+        setMessages(msgs);
         setIsLoading(false);
+        await loadReactions(msgs);
       })
       .catch((err) => {
         console.error("Chat initial load error:", err);
@@ -62,7 +95,7 @@ export function useRealtimeChat({
     return () => {
       cancelled = true;
     };
-  }, [channelId]);
+  }, [channelId, loadReactions]);
 
   // ─── Souscription temps réel ─────────────────────────────────────────────
   useEffect(() => {
@@ -83,6 +116,16 @@ export function useRealtimeChat({
         const { id } = payload as { id: string };
         await fetchAndMerge(id);
       })
+      .on("broadcast", { event: "delete_message" }, ({ payload }) => {
+        const { id } = payload as { id: string };
+        setMessages((prev) => prev.filter((m) => m.id !== id));
+      })
+      .on("broadcast", { event: "reaction_update" }, async ({ payload }) => {
+        const { messageId } = payload as { messageId: string };
+        // Recharger les réactions pour ce message
+        const msg = messagesRef.current.find((m) => m.id === messageId);
+        if (msg) await loadReactions([msg]);
+      })
       .on(
         "postgres_changes",
         {
@@ -96,6 +139,19 @@ export function useRealtimeChat({
           await fetchAndMerge(id);
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "chat_messages",
+          filter: `channel_id=eq.${channelId}`,
+        },
+        (payload) => {
+          const id = (payload as unknown as { old: { id: string } }).old.id;
+          setMessages((prev) => prev.filter((m) => m.id !== id));
+        }
+      )
       .subscribe();
 
     channelRef.current = realtimeChannel;
@@ -104,7 +160,7 @@ export function useRealtimeChat({
       supabase.removeChannel(realtimeChannel);
       channelRef.current = null;
     };
-  }, [channelId, colocationId, supabase, mergeMessages]);
+  }, [channelId, colocationId, supabase, mergeMessages, loadReactions]);
 
   // ─── Fallback polling via server action ───────────────────────────────────
   useEffect(() => {
@@ -179,5 +235,60 @@ export function useRealtimeChat({
     [channelId, currentMember]
   );
 
-  return { messages, isLoading, sendMessage };
+  // ─── Suppression de message ───────────────────────────────────────────────
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      // Optimistic: retire immédiatement
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+
+      try {
+        await deleteChatMessageAction(messageId);
+
+        // Broadcast aux autres clients
+        await channelRef.current?.send({
+          type: "broadcast",
+          event: "delete_message",
+          payload: { id: messageId },
+        });
+      } catch (err) {
+        console.error("Chat delete error:", err);
+        // Recharger en cas d'erreur
+        const data = await fetchSingleMessage(messageId);
+        if (data) mergeMessages([data as ChatMessage]);
+        throw err;
+      }
+    },
+    [mergeMessages]
+  );
+
+  // ─── Toggle réaction ──────────────────────────────────────────────────────
+  const toggleReaction = useCallback(
+    async (messageId: string, emoji: string) => {
+      try {
+        await toggleReactionAction(messageId, emoji);
+
+        // Recharger les réactions de ce message
+        const reactions = await fetchReactionsForMessages([messageId]);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId
+              ? { ...m, reactions: (reactions as ChatMessageReaction[]) || [] }
+              : m
+          )
+        );
+
+        // Broadcast aux autres clients
+        await channelRef.current?.send({
+          type: "broadcast",
+          event: "reaction_update",
+          payload: { messageId },
+        });
+      } catch (err) {
+        console.error("Chat reaction error:", err);
+      }
+    },
+    []
+  );
+
+  return { messages, isLoading, sendMessage, deleteMessage, toggleReaction };
 }

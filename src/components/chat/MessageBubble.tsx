@@ -1,24 +1,71 @@
 "use client";
 
-import { ChatMessage } from "@/types";
+import { useState, useRef, useCallback } from "react";
+import { ChatMessage, ChatMessageReaction } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials, formatTime } from "@/lib/utils";
-import { Reply } from "lucide-react";
+import { Reply, Smile } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 
 interface MessageBubbleProps {
   message: ChatMessage;
   isOwn: boolean;
   showAvatar: boolean;
+  currentMemberId: string;
   onReply: (message: ChatMessage) => void;
+  onDelete: (messageId: string) => void;
+  onReaction: (messageId: string, emoji: string) => void;
 }
 
 export function MessageBubble({
   message,
   isOwn,
   showAvatar,
+  currentMemberId,
   onReply,
+  onDelete,
+  onReaction,
 }: MessageBubbleProps) {
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Long press handlers for deletion (own messages only)
+  const handlePointerDown = useCallback(() => {
+    if (!isOwn) return;
+    longPressTimer.current = setTimeout(() => {
+      setShowDeleteConfirm(true);
+    }, 600);
+  }, [isOwn]);
+
+  const handlePointerUp = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handlePointerLeave = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  // Regroupe les réactions par emoji
+  const groupedReactions = (message.reactions || []).reduce<
+    Map<string, { count: number; hasOwn: boolean; members: string[] }>
+  >((acc, r) => {
+    const entry = acc.get(r.emoji) || { count: 0, hasOwn: false, members: [] };
+    entry.count++;
+    if (r.member_id === currentMemberId) entry.hasOwn = true;
+    if (r.member?.display_name) entry.members.push(r.member.display_name);
+    acc.set(r.emoji, entry);
+    return acc;
+  }, new Map());
+
   // Message système
   if (message.is_system) {
     return (
@@ -33,7 +80,7 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        "flex items-end gap-2 group",
+        "flex items-end gap-2",
         isOwn ? "flex-row-reverse" : "flex-row"
       )}
     >
@@ -60,7 +107,7 @@ export function MessageBubble({
           isOwn ? "items-end" : "items-start"
         )}
       >
-        {/* Nom de l'expéditeur (pour les messages des autres) */}
+        {/* Nom de l'expéditeur */}
         {showAvatar && !isOwn && (
           <p className="text-xs font-medium text-gray-500 ml-1">
             {message.member?.display_name}
@@ -88,29 +135,122 @@ export function MessageBubble({
         <div className="relative">
           <div
             className={cn(
-              "rounded-2xl px-3 py-2 text-sm",
+              "rounded-2xl px-3 py-2 text-sm select-none",
               isOwn
                 ? "bg-indigo-600 text-white rounded-br-sm"
                 : "bg-white text-gray-900 border shadow-sm rounded-bl-sm"
             )}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerLeave}
+            onContextMenu={(e) => {
+              if (isOwn) {
+                e.preventDefault();
+                setShowDeleteConfirm(true);
+              }
+            }}
           >
             {message.content}
           </div>
 
-          {/* Bouton répondre (au survol / focus) */}
-          <button
-            type="button"
-            onClick={() => onReply(message)}
-            aria-label={`Répondre à ${message.member?.display_name ?? "ce message"}`}
+          {/* Boutons d'action : répondre + emoji (toujours visibles, discrets) */}
+          <div
             className={cn(
-              "absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity",
-              "p-1 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500",
-              isOwn ? "-left-8" : "-right-8"
+              "flex items-center gap-1 mt-0.5",
+              isOwn ? "justify-end" : "justify-start"
             )}
           >
-            <Reply className="h-3 w-3" aria-hidden="true" />
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker((v) => !v)}
+              aria-label="Réagir"
+              className="p-1 rounded-full text-gray-300 active:bg-gray-100 active:text-gray-500"
+            >
+              <Smile className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onReply(message)}
+              aria-label={`Répondre à ${message.member?.display_name ?? "ce message"}`}
+              className="p-1 rounded-full text-gray-300 active:bg-gray-100 active:text-gray-500"
+            >
+              <Reply className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+
+          {/* Emoji picker rapide */}
+          {showEmojiPicker && (
+            <div
+              className={cn(
+                "absolute z-20 flex gap-1 bg-white border shadow-lg rounded-full px-2 py-1 mt-1",
+                isOwn ? "right-0" : "left-0"
+              )}
+            >
+              {QUICK_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    onReaction(message.id, emoji);
+                    setShowEmojiPicker(false);
+                  }}
+                  className="text-lg hover:scale-125 transition-transform px-0.5"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Réactions affichées sous la bulle */}
+        {groupedReactions.size > 0 && (
+          <div className={cn("flex flex-wrap gap-1", isOwn ? "justify-end" : "justify-start")}>
+            {Array.from(groupedReactions.entries()).map(([emoji, info]) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => onReaction(message.id, emoji)}
+                title={info.members.join(", ")}
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs border transition-colors",
+                  info.hasOwn
+                    ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                    : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                )}
+              >
+                <span>{emoji}</span>
+                {info.count > 1 && <span>{info.count}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Confirmation de suppression (long press) */}
+        {showDeleteConfirm && (
+          <div className={cn(
+            "flex items-center gap-2 mt-1",
+            isOwn ? "justify-end" : "justify-start"
+          )}>
+            <button
+              type="button"
+              onClick={() => {
+                onDelete(message.id);
+                setShowDeleteConfirm(false);
+              }}
+              className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-1 hover:bg-red-100"
+            >
+              Supprimer
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(false)}
+              className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 hover:bg-gray-100"
+            >
+              Annuler
+            </button>
+          </div>
+        )}
 
         {/* Heure */}
         <p

@@ -3,6 +3,7 @@
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import { sendPushToMany } from "@/lib/push";
 
 function createAdminClient() {
   return createClient(
@@ -97,5 +98,157 @@ export async function deleteEvent(eventId: string) {
 
   if (error) throw new Error("Impossible de supprimer l'événement");
 
+  // Notification push : événement annulé
+  try {
+    const { data: subs } = await admin
+      .from("push_subscriptions")
+      .select("endpoint, p256dh, auth, member_id")
+      .in(
+        "member_id",
+        await admin
+          .from("members")
+          .select("id")
+          .eq("colocation_id", member.colocation_id)
+          .neq("id", member.id)
+          .then((r) => (r.data || []).map((m) => m.id))
+      );
+
+    if (subs && subs.length > 0) {
+      const result = await sendPushToMany(
+        subs.map((s) => ({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth })),
+        {
+          title: "Événement annulé",
+          body: `Un événement a été annulé`,
+          url: "/calendar",
+          tag: "event_cancelled",
+        }
+      );
+      if (result.expiredEndpoints.length > 0) {
+        await admin
+          .from("push_subscriptions")
+          .delete()
+          .in("endpoint", result.expiredEndpoints);
+      }
+    }
+  } catch (e) {
+    console.error("Erreur envoi notification annulation:", e);
+  }
+
+  revalidatePath("/calendar");
+}
+
+/**
+ * Met à jour un événement existant (admin ou créateur).
+ */
+export async function updateEvent(
+  eventId: string,
+  data: {
+    title: string;
+    description: string | null;
+    start_at: string;
+    end_at: string;
+    guest_count: number;
+    noise_level: string;
+    space_ids: string[];
+  }
+) {
+  const supabase = await createServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non authentifié");
+
+  const { data: member } = await supabase
+    .from("members")
+    .select("id, role, colocation_id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!member) throw new Error("Membre introuvable");
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, created_by, colocation_id, title")
+    .eq("id", eventId)
+    .single();
+
+  if (!event || event.colocation_id !== member.colocation_id) {
+    throw new Error("Événement introuvable");
+  }
+
+  const isCreator = event.created_by === member.id;
+  const isAdmin = member.role === "admin";
+
+  if (!isCreator && !isAdmin) {
+    throw new Error("Vous n'avez pas la permission de modifier cet événement");
+  }
+
+  const admin = createAdminClient();
+
+  // Met à jour l'événement
+  const { error } = await admin
+    .from("events")
+    .update({
+      title: data.title,
+      description: data.description,
+      start_at: data.start_at,
+      end_at: data.end_at,
+      guest_count: data.guest_count,
+      noise_level: data.noise_level,
+    })
+    .eq("id", eventId);
+
+  if (error) throw new Error("Impossible de modifier l'événement");
+
+  // Met à jour les espaces : supprime les anciens, insère les nouveaux
+  await admin.from("event_spaces").delete().eq("event_id", eventId);
+
+  if (data.space_ids.length > 0) {
+    await admin.from("event_spaces").insert(
+      data.space_ids.map((spaceId) => ({
+        event_id: eventId,
+        space_id: spaceId,
+      }))
+    );
+  }
+
+  // Notification push : événement modifié
+  try {
+    const { data: subs } = await admin
+      .from("push_subscriptions")
+      .select("endpoint, p256dh, auth, member_id")
+      .in(
+        "member_id",
+        await admin
+          .from("members")
+          .select("id")
+          .eq("colocation_id", member.colocation_id)
+          .neq("id", member.id)
+          .then((r) => (r.data || []).map((m) => m.id))
+      );
+
+    if (subs && subs.length > 0) {
+      const result = await sendPushToMany(
+        subs.map((s) => ({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth })),
+        {
+          title: `Événement modifié : ${data.title}`,
+          body: `${data.title} a été mis à jour`,
+          url: `/events/${eventId}`,
+          tag: "event_modified",
+        }
+      );
+      if (result.expiredEndpoints.length > 0) {
+        await admin
+          .from("push_subscriptions")
+          .delete()
+          .in("endpoint", result.expiredEndpoints);
+      }
+    }
+  } catch (e) {
+    console.error("Erreur envoi notification modification:", e);
+  }
+
+  revalidatePath(`/events/${eventId}`);
   revalidatePath("/calendar");
 }

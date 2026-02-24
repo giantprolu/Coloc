@@ -102,7 +102,7 @@ export default async function EventPage({ params }: EventPageProps) {
         </div>
         {(isCreator || isAdmin) && (
           <div className="flex gap-1">
-            {isCreator && (
+            {(isCreator || isAdmin) && (
               <Link href={`/events/${id}/edit`} aria-label="Modifier l'événement">
                 <Button variant="ghost" size="icon" aria-label="Modifier l'événement" className="h-8 w-8">
                   <Pencil className="h-4 w-4" aria-hidden="true" />

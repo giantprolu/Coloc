@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Space, ColocRule, NoiseLevel } from "@/types";
 import { checkEventRules } from "@/lib/rules";
+import { updateEvent } from "@/app/actions/events";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,15 +17,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { AlertTriangle, X } from "lucide-react";
+
+interface EventData {
+  id: string;
+  title: string;
+  description: string | null;
+  start_at: string;
+  end_at: string;
+  guest_count: number;
+  noise_level: string;
+  spaces?: { space: { id: string } }[];
+}
 
 interface CreateEventFormProps {
   memberId: string;
   colocationId: string;
   spaces: Space[];
   rules: ColocRule[];
+  mode?: "create" | "edit";
+  event?: EventData;
+}
+
+function toLocalDatetime(isoString: string): string {
+  const d = new Date(isoString);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function CreateEventForm({
@@ -32,18 +51,31 @@ export function CreateEventForm({
   colocationId,
   spaces,
   rules,
+  mode = "create",
+  event,
 }: CreateEventFormProps) {
   const router = useRouter();
   const supabase = createClient();
+  const isEdit = mode === "edit";
 
   const [isLoading, setIsLoading] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
-  const [guestCount, setGuestCount] = useState<number | "">("");
-  const [noiseLevel, setNoiseLevel] = useState<NoiseLevel>("moderate");
-  const [selectedSpaces, setSelectedSpaces] = useState<string[]>([]);
+  const [title, setTitle] = useState(event?.title || "");
+  const [description, setDescription] = useState(event?.description || "");
+  const [startAt, setStartAt] = useState(
+    event?.start_at ? toLocalDatetime(event.start_at) : ""
+  );
+  const [endAt, setEndAt] = useState(
+    event?.end_at ? toLocalDatetime(event.end_at) : ""
+  );
+  const [guestCount, setGuestCount] = useState<number | "">(
+    event?.guest_count ?? ""
+  );
+  const [noiseLevel, setNoiseLevel] = useState<NoiseLevel>(
+    (event?.noise_level as NoiseLevel) || "moderate"
+  );
+  const [selectedSpaces, setSelectedSpaces] = useState<string[]>(
+    event?.spaces?.map((es) => es.space.id) || []
+  );
   const [warnings, setWarnings] = useState<{ message: string }[]>([]);
 
   // Vérifie les règles en temps réel
@@ -99,6 +131,8 @@ export function CreateEventForm({
             if (!ev) return false;
             const eventData = Array.isArray(ev) ? ev[0] : ev;
             if (!eventData) return false;
+            // En mode edit, exclure l'événement en cours
+            if (isEdit && c.event_id === event?.id) return false;
             const eStart = new Date(eventData.start_at);
             const eEnd = new Date(eventData.end_at);
             const newStart = new Date(startAt);
@@ -114,60 +148,80 @@ export function CreateEventForm({
         }
       }
 
-      // Crée l'événement
-      const { data: event, error: eventError } = await supabase
-        .from("events")
-        .insert({
-          colocation_id: colocationId,
-          created_by: memberId,
+      if (isEdit && event) {
+        // Mode édition : update via server action
+        await updateEvent(event.id, {
           title,
           description: description || null,
           start_at: new Date(startAt).toISOString(),
           end_at: new Date(endAt).toISOString(),
           guest_count: guestCount === "" ? 0 : guestCount,
           noise_level: noiseLevel,
-        })
-        .select()
-        .single();
+          space_ids: selectedSpaces,
+        });
 
-      if (eventError) throw eventError;
+        toast.success("Événement modifié avec succès !");
+        router.push(`/events/${event.id}`);
+      } else {
+        // Mode création
+        const { data: newEvent, error: eventError } = await supabase
+          .from("events")
+          .insert({
+            colocation_id: colocationId,
+            created_by: memberId,
+            title,
+            description: description || null,
+            start_at: new Date(startAt).toISOString(),
+            end_at: new Date(endAt).toISOString(),
+            guest_count: guestCount === "" ? 0 : guestCount,
+            noise_level: noiseLevel,
+          })
+          .select()
+          .single();
 
-      // Associe les espaces
-      if (selectedSpaces.length > 0) {
-        await supabase.from("event_spaces").insert(
-          selectedSpaces.map((spaceId) => ({
-            event_id: event.id,
-            space_id: spaceId,
-          }))
-        );
+        if (eventError) throw eventError;
+
+        // Associe les espaces
+        if (selectedSpaces.length > 0) {
+          await supabase.from("event_spaces").insert(
+            selectedSpaces.map((spaceId) => ({
+              event_id: newEvent.id,
+              space_id: spaceId,
+            }))
+          );
+        }
+
+        // Crée un canal de chat dédié à l'événement
+        await supabase.from("chat_channels").insert({
+          colocation_id: colocationId,
+          event_id: newEvent.id,
+          name: title,
+          type: "event",
+        });
+
+        // Envoie une notification push à tous les colocataires
+        await fetch("/api/push/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            colocationId,
+            type: "event_new",
+            eventId: newEvent.id,
+            title: `Nouvel événement : ${title}`,
+            body: `${title} — Cliquez pour voir les détails`,
+          }),
+        });
+
+        toast.success("Événement créé avec succès !");
+        router.push(`/events/${newEvent.id}`);
       }
-
-      // Crée un canal de chat dédié à l'événement
-      await supabase.from("chat_channels").insert({
-        colocation_id: colocationId,
-        event_id: event.id,
-        name: title,
-        type: "event",
-      });
-
-      // Envoie une notification push à tous les colocataires
-      await fetch("/api/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          colocationId,
-          type: "event_new",
-          eventId: event.id,
-          title: `Nouvel événement : ${title}`,
-          body: `${title} — Cliquez pour voir les détails`,
-        }),
-      });
-
-      toast.success("Événement créé avec succès !");
-      router.push(`/events/${event.id}`);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Erreur lors de la création"
+        err instanceof Error
+          ? err.message
+          : isEdit
+            ? "Erreur lors de la modification"
+            : "Erreur lors de la création"
       );
     } finally {
       setIsLoading(false);
@@ -321,7 +375,13 @@ export function CreateEventForm({
         className="w-full bg-indigo-600 hover:bg-indigo-700"
         disabled={isLoading}
       >
-        {isLoading ? "Création en cours..." : "Créer l'événement"}
+        {isLoading
+          ? isEdit
+            ? "Modification en cours..."
+            : "Création en cours..."
+          : isEdit
+            ? "Modifier l'événement"
+            : "Créer l'événement"}
       </Button>
     </form>
   );

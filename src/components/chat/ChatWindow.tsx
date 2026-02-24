@@ -22,7 +22,7 @@ export function ChatWindow({ channel, currentMember, colocationId }: ChatWindowP
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, isLoading, sendMessage } = useRealtimeChat({
+  const { messages, isLoading, sendMessage, deleteMessage, toggleReaction } = useRealtimeChat({
     channelId: channel.id,
     colocationId,
     currentMember,
@@ -47,6 +47,18 @@ export function ChatWindow({ channel, currentMember, colocationId }: ChatWindowP
         err instanceof Error ? err.message : "Impossible d'envoyer le message"
       );
     }
+  };
+
+  const handleDelete = async (messageId: string) => {
+    try {
+      await deleteMessage(messageId);
+    } catch {
+      toast.error("Impossible de supprimer le message");
+    }
+  };
+
+  const handleReaction = async (messageId: string, emoji: string) => {
+    await toggleReaction(messageId, emoji);
   };
 
   return (
@@ -90,7 +102,10 @@ export function ChatWindow({ channel, currentMember, colocationId }: ChatWindowP
                 message={msg}
                 isOwn={isOwn}
                 showAvatar={showAvatar}
+                currentMemberId={currentMember.id}
                 onReply={setReplyTo}
+                onDelete={handleDelete}
+                onReaction={handleReaction}
               />
             );
           })

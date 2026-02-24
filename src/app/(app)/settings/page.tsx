@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarUpload } from "@/components/AvatarUpload";
 import { LogoutButton } from "@/components/LogoutButton";
 import { LeaveColocButton } from "@/components/LeaveColocButton";
 import { DeleteAccountButton } from "@/components/DeleteAccountButton";
@@ -61,12 +62,11 @@ export default async function SettingsPage() {
       <Card>
         <CardContent className="pt-4">
           <div className="flex items-center gap-4">
-            <Avatar className="h-14 w-14">
-              <AvatarImage src={member.avatar_url || undefined} />
-              <AvatarFallback className="text-lg bg-indigo-100 text-indigo-700">
-                {getInitials(member.display_name)}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarUpload
+              memberId={member.id}
+              displayName={member.display_name}
+              currentAvatarUrl={member.avatar_url}
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="font-semibold text-gray-900">

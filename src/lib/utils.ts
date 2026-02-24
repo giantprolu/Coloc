@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
+import { format, formatDistanceToNow, isToday, isTomorrow, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 
 export function cn(...inputs: ClassValue[]) {
@@ -40,11 +40,15 @@ export function formatEventDate(startAt: string, endAt: string): string {
   const start = new Date(startAt);
   const end = new Date(endAt);
 
-  let dateLabel = formatDate(start, "EEEE d MMMM");
-  if (isToday(start)) dateLabel = "Aujourd'hui";
-  else if (isTomorrow(start)) dateLabel = "Demain";
+  if (isSameDay(start, end)) {
+    let dateLabel = formatDate(start, "EEEE d MMMM");
+    if (isToday(start)) dateLabel = "Aujourd'hui";
+    else if (isTomorrow(start)) dateLabel = "Demain";
+    return `${dateLabel}, ${formatTime(start)} – ${formatTime(end)}`;
+  }
 
-  return `${dateLabel}, ${formatTime(start)} – ${formatTime(end)}`;
+  // Jours différents : "20 janvier 14:00 – 22 janvier 18:00"
+  return `${formatDate(start, "d MMMM")} ${formatTime(start)} – ${formatDate(end, "d MMMM")} ${formatTime(end)}`;
 }
 
 // Obtient les initiales d'un nom

@@ -1,169 +1,79 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ColocRule } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
-
-interface RuleDefinition {
-  key: string;
-  label: string;
-  description?: string;
-  type: "number" | "time";
-  defaultValue: number | { start: number; end: number };
-}
 
 interface RulesEditorProps {
   colocationId: string;
-  memberId: string;
-  ruleDefinitions: RuleDefinition[];
-  currentRules: ColocRule[];
+  initialContent: string;
 }
 
-export function RulesEditor({
-  colocationId,
-  memberId,
-  ruleDefinitions,
-  currentRules,
-}: RulesEditorProps) {
+export function RulesEditor({ colocationId, initialContent }: RulesEditorProps) {
   const supabase = createClient();
+  const [content, setContent] = useState(initialContent);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const getRuleValue = (key: string, def: RuleDefinition) => {
-    const rule = currentRules.find((r) => r.rule_key === key);
-    return rule ? rule.rule_value : def.defaultValue;
-  };
-
-  const [values, setValues] = useState<Record<string, unknown>>(
-    Object.fromEntries(
-      ruleDefinitions.map((def) => [def.key, getRuleValue(def.key, def)])
-    )
-  );
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async (key: string) => {
-    setIsSaving(true);
-    try {
-      const { error } = await supabase
-        .from("coloc_rules")
-        .upsert(
+  const save = useCallback(
+    async (text: string) => {
+      setSaveStatus("saving");
+      try {
+        const { error } = await supabase.from("coloc_rules").upsert(
           {
             colocation_id: colocationId,
-            rule_key: key,
-            rule_value: values[key],
+            rule_key: "notepad",
+            rule_value: { content: text },
             updated_at: new Date().toISOString(),
           },
           { onConflict: "colocation_id,rule_key" }
         );
+        if (error) throw error;
+        setSaveStatus("saved");
+      } catch {
+        setSaveStatus("idle");
+        toast.error("Impossible de sauvegarder");
+      }
+    },
+    [colocationId, supabase]
+  );
 
-      if (error) throw error;
-      toast.success("Règle mise à jour !");
-    } catch {
-      toast.error("Impossible de sauvegarder la règle");
-    } finally {
-      setIsSaving(false);
-    }
+  const handleChange = (text: string) => {
+    setContent(text);
+    setSaveStatus("idle");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => save(text), 1000);
   };
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   return (
-    <div className="space-y-3">
-      {ruleDefinitions.map((def) => {
-        const value = values[def.key];
-
-        return (
-          <Card key={def.key}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">
-                {def.label}
-              </CardTitle>
-              {def.description && (
-                <p className="text-xs text-gray-500">{def.description}</p>
-              )}
-            </CardHeader>
-            <CardContent>
-              {def.type === "number" && (
-                <div className="flex items-center gap-3">
-                  <Input
-                    type="number"
-                    value={value as number}
-                    onChange={(e) =>
-                      setValues((v) => ({
-                        ...v,
-                        [def.key]: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                    className="w-24"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleSave(def.key)}
-                    disabled={isSaving}
-                  >
-                    Sauver
-                  </Button>
-                </div>
-              )}
-
-              {def.type === "time" && (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-gray-500">Début :</span>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={23}
-                      value={(value as { start: number; end: number }).start}
-                      onChange={(e) =>
-                        setValues((v) => ({
-                          ...v,
-                          [def.key]: {
-                            ...(v[def.key] as { start: number; end: number }),
-                            start: parseInt(e.target.value) || 0,
-                          },
-                        }))
-                      }
-                      className="w-16 text-center"
-                    />
-                    <span className="text-xs text-gray-500">h</span>
-                  </div>
-                  <span className="text-gray-400">→</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-gray-500">Fin :</span>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={23}
-                      value={(value as { start: number; end: number }).end}
-                      onChange={(e) =>
-                        setValues((v) => ({
-                          ...v,
-                          [def.key]: {
-                            ...(v[def.key] as { start: number; end: number }),
-                            end: parseInt(e.target.value) || 0,
-                          },
-                        }))
-                      }
-                      className="w-16 text-center"
-                    />
-                    <span className="text-xs text-gray-500">h</span>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleSave(def.key)}
-                    disabled={isSaving}
-                  >
-                    Sauver
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
+    <Card>
+      <CardContent className="pt-4">
+        <Textarea
+          value={content}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder="Écrivez ici les règles de la coloc...&#10;&#10;Exemples :&#10;- Heures silencieuses : 23h → 8h en semaine&#10;- Maximum 10 invités&#10;- Prévenir 48h à l'avance pour les soirées"
+          className="min-h-[300px] resize-y text-sm leading-relaxed"
+        />
+        <div className="mt-2 flex items-center justify-end gap-1 text-xs text-gray-400 h-5">
+          {saveStatus === "saving" && <span>Sauvegarde...</span>}
+          {saveStatus === "saved" && (
+            <>
+              <Check className="h-3 w-3 text-green-500" />
+              <span className="text-green-600">Sauvegardé</span>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

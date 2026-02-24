@@ -90,12 +90,22 @@ export interface ChatMessage {
   member?: Member;
   reply?: ChatMessage;
   read_receipts?: MessageReadReceipt[];
+  reactions?: ChatMessageReaction[];
 }
 
 export interface MessageReadReceipt {
   message_id: string;
   member_id: string;
   read_at: string;
+}
+
+export interface ChatMessageReaction {
+  id: string;
+  message_id: string;
+  member_id: string;
+  emoji: string;
+  created_at: string;
+  member?: Member;
 }
 
 export interface ColocRule {

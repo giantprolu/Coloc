@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PresenceToggle } from "@/components/PresenceToggle";
+import { WeekendPlanner } from "@/components/WeekendPlanner";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -18,6 +19,13 @@ import {
   Pin,
 } from "lucide-react";
 import { NOISE_LEVEL_LABELS, PRESENCE_LABELS } from "@/types";
+import {
+  startOfMonth,
+  endOfMonth,
+  eachWeekendOfInterval,
+  isSaturday,
+  format as fnsFormat,
+} from "date-fns";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -89,6 +97,27 @@ export default async function DashboardPage() {
         .order("created_at", { ascending: false })
         .limit(3)
     : { data: null };
+
+  // Calcule les weekends du mois (samedis uniquement)
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+  const allWeekendDays = eachWeekendOfInterval({ start: monthStart, end: monthEnd });
+  const weekendSaturdays = allWeekendDays
+    .filter((d) => isSaturday(d))
+    .map((d) => fnsFormat(d, "yyyy-MM-dd"));
+
+  // Récupère les présences weekend
+  const { data: weekendPresences } = weekendSaturdays.length > 0
+    ? await supabase
+        .from("weekend_presence")
+        .select("member_id, weekend_date, is_present")
+        .in("weekend_date", weekendSaturdays)
+        .in(
+          "member_id",
+          (colocMembers || []).map((m) => m.id)
+        )
+    : { data: [] };
 
   const coloc = member.colocation as { name: string; invite_code: string } | null;
 
@@ -271,6 +300,20 @@ export default async function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Planning weekends */}
+      {colocMembers && colocMembers.length > 0 && weekendSaturdays.length > 0 && (
+        <WeekendPlanner
+          currentMemberId={member.id}
+          members={(colocMembers || []).map((m) => ({
+            id: m.id,
+            display_name: m.display_name,
+            avatar_url: m.avatar_url,
+          }))}
+          weekendPresences={weekendPresences || []}
+          weekends={weekendSaturdays}
+        />
       )}
 
       {/* Derniers messages */}

@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { sendPushToMany } from "@/lib/push";
 
 function createAdminClient() {
   return createClient(
@@ -94,6 +95,52 @@ export async function sendChatMessage(
     throw new Error("Impossible d'envoyer le message");
   }
 
+  // Notification push aux autres membres de la coloc (exclure l'expéditeur)
+  try {
+    const { data: memberInfo } = await admin
+      .from("members")
+      .select("display_name")
+      .eq("id", member.id)
+      .single();
+
+    const { data: otherMembers } = await admin
+      .from("members")
+      .select("id")
+      .eq("colocation_id", member.colocation_id)
+      .neq("id", member.id);
+
+    if (otherMembers && otherMembers.length > 0) {
+      const { data: subs } = await admin
+        .from("push_subscriptions")
+        .select("endpoint, p256dh, auth")
+        .in("member_id", otherMembers.map((m) => m.id));
+
+      if (subs && subs.length > 0) {
+        const senderName = memberInfo?.display_name || "Quelqu'un";
+        const truncatedContent =
+          content.length > 80 ? content.slice(0, 77) + "..." : content;
+
+        const result = await sendPushToMany(
+          subs.map((s) => ({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth })),
+          {
+            title: `${senderName} dans le chat`,
+            body: truncatedContent,
+            url: `/chat/${channelId}`,
+            tag: "chat_message",
+          }
+        );
+        if (result.expiredEndpoints.length > 0) {
+          await admin
+            .from("push_subscriptions")
+            .delete()
+            .in("endpoint", result.expiredEndpoints);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Erreur envoi notification chat:", e);
+  }
+
   return data;
 }
 
@@ -156,4 +203,90 @@ export async function fetchSingleMessage(messageId: string) {
     .single();
 
   return data;
+}
+
+/**
+ * Toggle une réaction emoji sur un message.
+ * Si la réaction existe déjà → supprime, sinon → ajoute.
+ */
+export async function toggleMessageReaction(messageId: string, emoji: string) {
+  const member = await getAuthenticatedMember();
+  const admin = createAdminClient();
+
+  // Vérifie que le message appartient à un canal de la coloc du membre
+  const { data: message } = await admin
+    .from("chat_messages")
+    .select("id, channel_id, channel:chat_channels!chat_messages_channel_id_fkey(colocation_id)")
+    .eq("id", messageId)
+    .single();
+
+  if (
+    !message ||
+    (message.channel as unknown as { colocation_id: string })?.colocation_id !==
+      member.colocation_id
+  ) {
+    throw new Error("Message introuvable");
+  }
+
+  // Cherche une réaction existante
+  const { data: existing } = await admin
+    .from("chat_message_reactions")
+    .select("id")
+    .eq("message_id", messageId)
+    .eq("member_id", member.id)
+    .eq("emoji", emoji)
+    .single();
+
+  if (existing) {
+    await admin.from("chat_message_reactions").delete().eq("id", existing.id);
+    return { action: "removed" as const };
+  } else {
+    await admin.from("chat_message_reactions").insert({
+      message_id: messageId,
+      member_id: member.id,
+      emoji,
+    });
+    return { action: "added" as const };
+  }
+}
+
+/**
+ * Récupère les réactions d'un ensemble de messages.
+ */
+export async function fetchReactionsForMessages(messageIds: string[]) {
+  if (messageIds.length === 0) return [];
+  const admin = createAdminClient();
+
+  const { data } = await admin
+    .from("chat_message_reactions")
+    .select("*, member:members!chat_message_reactions_member_id_fkey(id, display_name)")
+    .in("message_id", messageIds);
+
+  return data || [];
+}
+
+/**
+ * Supprime un message (uniquement ses propres messages).
+ */
+export async function deleteChatMessage(messageId: string) {
+  const member = await getAuthenticatedMember();
+  const admin = createAdminClient();
+
+  const { data: message } = await admin
+    .from("chat_messages")
+    .select("id, member_id")
+    .eq("id", messageId)
+    .single();
+
+  if (!message) throw new Error("Message introuvable");
+  if (message.member_id !== member.id)
+    throw new Error("Vous ne pouvez supprimer que vos propres messages");
+
+  const { error } = await admin
+    .from("chat_messages")
+    .delete()
+    .eq("id", messageId);
+
+  if (error) throw new Error("Impossible de supprimer le message");
+  return { success: true };
 }

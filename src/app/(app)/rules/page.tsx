@@ -1,44 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { RulesEditor } from "@/components/RulesEditor";
 import { BookOpen } from "lucide-react";
-
-interface RuleDef {
-  key: string;
-  label: string;
-  description?: string;
-  type: "number" | "time";
-  defaultValue: number | { start: number; end: number };
-}
-
-const DEFAULT_RULES: RuleDef[] = [
-  {
-    key: "quiet_hours_weekday",
-    label: "Heures silencieuses (semaine)",
-    description: "Après cette heure, les soirées festives afficheront un avertissement",
-    type: "time",
-    defaultValue: { start: 23, end: 8 },
-  },
-  {
-    key: "quiet_hours_weekend",
-    label: "Heures silencieuses (week-end)",
-    type: "time",
-    defaultValue: { start: 1, end: 9 },
-  },
-  {
-    key: "max_guests_default",
-    label: "Nombre maximum d'invités",
-    type: "number",
-    defaultValue: 10,
-  },
-  {
-    key: "min_notice_hours",
-    label: "Délai minimum de prévenance (heures)",
-    type: "number",
-    defaultValue: 48,
-  },
-];
 
 export default async function RulesPage() {
   const supabase = await createClient();
@@ -56,17 +20,22 @@ export default async function RulesPage() {
 
   if (!member) redirect("/onboarding");
 
-  const { data: rules } = await supabase
+  const { data: notepadRule } = await supabase
     .from("coloc_rules")
     .select("*")
-    .eq("colocation_id", member.colocation_id);
+    .eq("colocation_id", member.colocation_id)
+    .eq("rule_key", "notepad")
+    .single();
+
+  const initialContent =
+    (notepadRule?.rule_value as { content?: string })?.content ?? "";
 
   return (
     <div className="space-y-4 p-4">
       <div className="pt-2">
         <h1 className="text-xl font-bold text-gray-900">Règles de la coloc</h1>
         <p className="text-sm text-gray-500">
-          Ces règles s&apos;appliquent à tous les événements
+          Un bloc-notes partagé pour les règles de vie commune
         </p>
       </div>
 
@@ -75,9 +44,8 @@ export default async function RulesPage() {
           <div className="flex items-start gap-2">
             <BookOpen className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-amber-800">
-              Les avertissements s&apos;affichent automatiquement lors de la création
-              d&apos;un événement qui ne respecte pas ces règles. Tous les colocataires
-              peuvent modifier les règles.
+              Tous les colocataires peuvent modifier ce bloc-notes. Les
+              changements sont sauvegardés automatiquement.
             </p>
           </div>
         </CardContent>
@@ -85,9 +53,7 @@ export default async function RulesPage() {
 
       <RulesEditor
         colocationId={member.colocation_id}
-        memberId={member.id}
-        ruleDefinitions={DEFAULT_RULES}
-        currentRules={rules || []}
+        initialContent={initialContent}
       />
     </div>
   );

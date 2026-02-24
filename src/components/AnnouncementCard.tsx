@@ -33,6 +33,26 @@ export function NewAnnouncementForm({ memberId, colocationId }: NewAnnouncementF
 
       if (error) throw error;
 
+      // Notification push aux colocataires
+      try {
+        await fetch("/api/push/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            colocationId,
+            type: "announcement_new",
+            title: "Nouvelle annonce",
+            body:
+              content.trim().length > 80
+                ? content.trim().slice(0, 77) + "..."
+                : content.trim(),
+            excludeMemberId: memberId,
+          }),
+        });
+      } catch {
+        // Silently ignore push errors
+      }
+
       setContent("");
       toast.success("Annonce publiée !");
       router.refresh();
