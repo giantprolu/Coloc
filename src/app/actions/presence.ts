@@ -47,3 +47,40 @@ export async function toggleWeekendPresence(
 
   revalidatePath("/dashboard");
 }
+
+/**
+ * Récupère les présences weekend pour un ensemble de dates.
+ */
+export async function fetchWeekendPresences(weekendDates: string[]) {
+  if (weekendDates.length === 0) return [];
+
+  const supabase = await createServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non authentifié");
+
+  const { data: member } = await supabase
+    .from("members")
+    .select("id, colocation_id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!member) throw new Error("Membre introuvable");
+
+  const admin = createAdminClient();
+
+  const { data: members } = await admin
+    .from("members")
+    .select("id")
+    .eq("colocation_id", member.colocation_id);
+
+  const { data } = await admin
+    .from("weekend_presence")
+    .select("member_id, weekend_date, is_present")
+    .in("weekend_date", weekendDates)
+    .in("member_id", (members || []).map((m) => m.id));
+
+  return data || [];
+}

@@ -1,13 +1,24 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toggleWeekendPresence } from "@/app/actions/presence";
+import { useState, useTransition, useCallback } from "react";
+import {
+  toggleWeekendPresence,
+  fetchWeekendPresences,
+} from "@/app/actions/presence";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 import { getInitials } from "@/lib/utils";
-import { CalendarDays, Check, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachWeekendOfInterval,
+  isSaturday,
+  addMonths,
+} from "date-fns";
 import { fr } from "date-fns/locale";
 
 interface WeekendPresenceData {
@@ -26,29 +37,70 @@ interface WeekendPlannerProps {
   currentMemberId: string;
   members: MemberData[];
   weekendPresences: WeekendPresenceData[];
-  weekends: string[]; // ISO date strings (samedi de chaque weekend)
+  weekends: string[]; // ISO date strings (samedi de chaque weekend) — mois initial
+}
+
+function getWeekendsForMonth(date: Date): string[] {
+  const start = startOfMonth(date);
+  const end = endOfMonth(date);
+  return eachWeekendOfInterval({ start, end })
+    .filter((d) => isSaturday(d))
+    .map((d) => format(d, "yyyy-MM-dd"));
 }
 
 export function WeekendPlanner({
   currentMemberId,
   members,
   weekendPresences,
-  weekends,
+  weekends: initialWeekends,
 }: WeekendPlannerProps) {
-  const [presences, setPresences] = useState(weekendPresences);
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [presences, setPresences] = useState<WeekendPresenceData[]>(weekendPresences);
+  const [loadedMonths, setLoadedMonths] = useState<Set<number>>(new Set([0]));
   const [isPending, startTransition] = useTransition();
 
-  const isPresent = (memberId: string, weekendDate: string) => {
-    const entry = presences.find(
-      (p) => p.member_id === memberId && p.weekend_date === weekendDate
-    );
-    return entry ? entry.is_present : true;
+  const currentMonth = addMonths(new Date(), monthOffset);
+  const weekends =
+    monthOffset === 0
+      ? initialWeekends
+      : getWeekendsForMonth(currentMonth);
+
+  const isPresent = useCallback(
+    (memberId: string, weekendDate: string) => {
+      const entry = presences.find(
+        (p) => p.member_id === memberId && p.weekend_date === weekendDate
+      );
+      return entry ? entry.is_present : true;
+    },
+    [presences]
+  );
+
+  const navigateMonth = async (offset: number) => {
+    const newOffset = monthOffset + offset;
+    setMonthOffset(newOffset);
+
+    if (!loadedMonths.has(newOffset)) {
+      const month = addMonths(new Date(), newOffset);
+      const dates = getWeekendsForMonth(month);
+      try {
+        const data = await fetchWeekendPresences(dates);
+        setPresences((prev) => {
+          const existing = new Set(
+            prev.map((p) => `${p.member_id}:${p.weekend_date}`)
+          );
+          const toAdd = (data as WeekendPresenceData[]).filter(
+            (d) => !existing.has(`${d.member_id}:${d.weekend_date}`)
+          );
+          return [...prev, ...toAdd];
+        });
+      } catch {
+        // Données non chargées, on utilise le défaut (présent)
+      }
+      setLoadedMonths((prev) => new Set([...prev, newOffset]));
+    }
   };
 
-  const handleToggle = (weekendDate: string) => {
-    const current = isPresent(currentMemberId, weekendDate);
-    const newValue = !current;
-
+  const handleToggle = (weekendDate: string, newValue: boolean) => {
     setPresences((prev) => {
       const idx = prev.findIndex(
         (p) =>
@@ -61,11 +113,7 @@ export function WeekendPlanner({
       }
       return [
         ...prev,
-        {
-          member_id: currentMemberId,
-          weekend_date: weekendDate,
-          is_present: newValue,
-        },
+        { member_id: currentMemberId, weekend_date: weekendDate, is_present: newValue },
       ];
     });
 
@@ -73,6 +121,7 @@ export function WeekendPlanner({
       try {
         await toggleWeekendPresence(weekendDate, newValue);
       } catch {
+        // Revert
         setPresences((prev) => {
           const idx = prev.findIndex(
             (p) =>
@@ -80,7 +129,7 @@ export function WeekendPlanner({
           );
           if (idx >= 0) {
             const updated = [...prev];
-            updated[idx] = { ...updated[idx], is_present: current };
+            updated[idx] = { ...updated[idx], is_present: !newValue };
             return updated;
           }
           return prev;
@@ -90,8 +139,7 @@ export function WeekendPlanner({
     });
   };
 
-  const handleBulkToggle = (setPresent: boolean) => {
-    // Optimistic update for all weekends
+  const handleBulk = (setPresent: boolean) => {
     setPresences((prev) => {
       const updated = [...prev];
       for (const date of weekends) {
@@ -116,115 +164,145 @@ export function WeekendPlanner({
         await Promise.all(
           weekends.map((date) => toggleWeekendPresence(date, setPresent))
         );
-        toast.success(
-          setPresent
-            ? "Présent tous les weekends !"
-            : "Absent tous les weekends"
-        );
       } catch {
         toast.error("Erreur lors de la mise à jour");
       }
     });
   };
 
-  // Vérifie l'état global du membre courant pour les boutons bulk
   const allPresent = weekends.every((d) => isPresent(currentMemberId, d));
   const allAbsent = weekends.every((d) => !isPresent(currentMemberId, d));
+  const monthLabel = format(currentMonth, "MMMM yyyy", { locale: fr });
 
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold text-gray-700">
           <CalendarDays className="h-4 w-4" />
-          Weekends du mois
+          Weekends
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Navigation mois */}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            disabled={monthOffset <= 0}
+            onClick={() => navigateMonth(-1)}
+            className="p-1.5 rounded-lg text-gray-400 active:bg-gray-100 disabled:opacity-30"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-medium text-gray-700 capitalize">
+            {monthLabel}
+          </span>
+          <button
+            type="button"
+            disabled={monthOffset >= 5}
+            onClick={() => navigateMonth(1)}
+            className="p-1.5 rounded-lg text-gray-400 active:bg-gray-100 disabled:opacity-30"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
         {/* Boutons bulk */}
         <div className="flex gap-2">
           <button
             type="button"
             disabled={isPending || allPresent}
-            onClick={() => handleBulkToggle(true)}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+            onClick={() => handleBulk(true)}
+            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
               allPresent
                 ? "bg-green-100 text-green-700 border border-green-200"
-                : "bg-gray-50 text-gray-600 border border-gray-200 active:bg-green-50"
+                : "bg-gray-50 text-gray-500 border border-gray-200 active:bg-green-50"
             }`}
           >
-            <Check className="h-3.5 w-3.5" />
-            Présent partout
+            Tout cocher
           </button>
           <button
             type="button"
             disabled={isPending || allAbsent}
-            onClick={() => handleBulkToggle(false)}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+            onClick={() => handleBulk(false)}
+            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
               allAbsent
-                ? "bg-red-50 text-red-600 border border-red-200"
-                : "bg-gray-50 text-gray-600 border border-gray-200 active:bg-red-50"
+                ? "bg-gray-200 text-gray-600 border border-gray-300"
+                : "bg-gray-50 text-gray-500 border border-gray-200 active:bg-gray-100"
             }`}
           >
-            <X className="h-3.5 w-3.5" />
-            Absent partout
+            Tout décocher
           </button>
         </div>
 
-        {/* Liste des weekends */}
-        {weekends.map((date) => {
-          const d = new Date(date + "T12:00:00");
-          const sunday = new Date(d.getTime() + 86400000);
-          const label = `Sam ${format(d, "d", { locale: fr })} - Dim ${format(sunday, "d MMM", { locale: fr })}`;
+        {/* Timeline des weekends */}
+        {weekends.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-2">
+            Aucun weekend ce mois-ci
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {weekends.map((date) => {
+              const d = new Date(date + "T12:00:00");
+              const sunday = new Date(d.getTime() + 86400000);
+              const label = `Sam ${format(d, "d")} - Dim ${format(sunday, "d MMM", { locale: fr })}`;
+              const myPresence = isPresent(currentMemberId, date);
+              const otherPresent = members.filter(
+                (m) => m.id !== currentMemberId && isPresent(m.id, date)
+              );
 
-          return (
-            <div key={date} className="rounded-lg border bg-gray-50 p-3">
-              <p className="text-xs font-medium text-gray-600 mb-2">{label}</p>
-              <div className="flex flex-wrap gap-2">
-                {members.map((m) => {
-                  const present = isPresent(m.id, date);
-                  const isMe = m.id === currentMemberId;
+              return (
+                <div
+                  key={date}
+                  className="flex items-center gap-3 rounded-lg border bg-white p-3"
+                >
+                  {/* Date + avatars */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800">
+                      {label}
+                    </p>
+                    {otherPresent.length > 0 && (
+                      <div className="flex items-center gap-1 mt-1.5">
+                        <div className="flex -space-x-1.5">
+                          {otherPresent.slice(0, 5).map((m) => (
+                            <Avatar key={m.id} className="h-5 w-5 border-2 border-white">
+                              <AvatarImage src={m.avatar_url || undefined} />
+                              <AvatarFallback className="text-[8px] bg-green-100 text-green-700">
+                                {getInitials(m.display_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                          ))}
+                        </div>
+                        <span className="text-[10px] text-gray-400 ml-0.5">
+                          {otherPresent.length === 1
+                            ? otherPresent[0].display_name.split(" ")[0]
+                            : `${otherPresent.length} présents`}
+                        </span>
+                      </div>
+                    )}
+                    {otherPresent.length === 0 && (
+                      <p className="text-[10px] text-gray-300 mt-1">
+                        Personne d&apos;autre
+                      </p>
+                    )}
+                  </div>
 
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      disabled={!isMe || isPending}
-                      onClick={() => isMe && handleToggle(date)}
-                      className={`flex items-center gap-1.5 rounded-full pl-0.5 pr-2.5 py-0.5 text-xs transition-colors ${
-                        present
-                          ? "bg-green-100 text-green-700 border border-green-200"
-                          : "bg-gray-100 text-gray-400 border border-gray-200"
-                      } ${
-                        isMe ? "active:ring-2 active:ring-indigo-300" : ""
-                      }`}
-                    >
-                      <Avatar className="h-5 w-5">
-                        <AvatarImage src={m.avatar_url || undefined} />
-                        <AvatarFallback
-                          className={`text-[9px] ${
-                            present
-                              ? "bg-green-200 text-green-800"
-                              : "bg-gray-200 text-gray-500"
-                          }`}
-                        >
-                          {getInitials(m.display_name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="truncate max-w-[60px]">
-                        {m.display_name.split(" ")[0]}
-                      </span>
-                      {present ? (
-                        <Check className="h-3 w-3 flex-shrink-0" />
-                      ) : (
-                        <X className="h-3 w-3 flex-shrink-0" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+                  {/* Switch */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Switch
+                      checked={myPresence}
+                      onCheckedChange={(checked) => handleToggle(date, checked)}
+                      disabled={isPending}
+                      className="data-[state=checked]:bg-green-500"
+                    />
+                    <span className={`text-[10px] ${myPresence ? "text-green-600" : "text-gray-400"}`}>
+                      {myPresence ? "Là" : "Absent"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
