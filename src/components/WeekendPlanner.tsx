@@ -5,7 +5,7 @@ import { toggleWeekendPresence } from "@/app/actions/presence";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -42,7 +42,6 @@ export function WeekendPlanner({
     const entry = presences.find(
       (p) => p.member_id === memberId && p.weekend_date === weekendDate
     );
-    // Par défaut, on considère "présent" si pas d'entrée
     return entry ? entry.is_present : true;
   };
 
@@ -50,7 +49,6 @@ export function WeekendPlanner({
     const current = isPresent(currentMemberId, weekendDate);
     const newValue = !current;
 
-    // Optimistic update
     setPresences((prev) => {
       const idx = prev.findIndex(
         (p) =>
@@ -75,7 +73,6 @@ export function WeekendPlanner({
       try {
         await toggleWeekendPresence(weekendDate, newValue);
       } catch {
-        // Revert on error
         setPresences((prev) => {
           const idx = prev.findIndex(
             (p) =>
@@ -93,6 +90,47 @@ export function WeekendPlanner({
     });
   };
 
+  const handleBulkToggle = (setPresent: boolean) => {
+    // Optimistic update for all weekends
+    setPresences((prev) => {
+      const updated = [...prev];
+      for (const date of weekends) {
+        const idx = updated.findIndex(
+          (p) => p.member_id === currentMemberId && p.weekend_date === date
+        );
+        if (idx >= 0) {
+          updated[idx] = { ...updated[idx], is_present: setPresent };
+        } else {
+          updated.push({
+            member_id: currentMemberId,
+            weekend_date: date,
+            is_present: setPresent,
+          });
+        }
+      }
+      return updated;
+    });
+
+    startTransition(async () => {
+      try {
+        await Promise.all(
+          weekends.map((date) => toggleWeekendPresence(date, setPresent))
+        );
+        toast.success(
+          setPresent
+            ? "Présent tous les weekends !"
+            : "Absent tous les weekends"
+        );
+      } catch {
+        toast.error("Erreur lors de la mise à jour");
+      }
+    });
+  };
+
+  // Vérifie l'état global du membre courant pour les boutons bulk
+  const allPresent = weekends.every((d) => isPresent(currentMemberId, d));
+  const allAbsent = weekends.every((d) => !isPresent(currentMemberId, d));
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -101,82 +139,92 @@ export function WeekendPlanner({
           Weekends du mois
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr>
-                <th className="text-left pr-3 pb-2 text-gray-500 font-medium">
-                  &nbsp;
-                </th>
-                {weekends.map((date) => {
-                  const d = new Date(date + "T12:00:00");
+      <CardContent className="space-y-3">
+        {/* Boutons bulk */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={isPending || allPresent}
+            onClick={() => handleBulkToggle(true)}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+              allPresent
+                ? "bg-green-100 text-green-700 border border-green-200"
+                : "bg-gray-50 text-gray-600 border border-gray-200 active:bg-green-50"
+            }`}
+          >
+            <Check className="h-3.5 w-3.5" />
+            Présent partout
+          </button>
+          <button
+            type="button"
+            disabled={isPending || allAbsent}
+            onClick={() => handleBulkToggle(false)}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+              allAbsent
+                ? "bg-red-50 text-red-600 border border-red-200"
+                : "bg-gray-50 text-gray-600 border border-gray-200 active:bg-red-50"
+            }`}
+          >
+            <X className="h-3.5 w-3.5" />
+            Absent partout
+          </button>
+        </div>
+
+        {/* Liste des weekends */}
+        {weekends.map((date) => {
+          const d = new Date(date + "T12:00:00");
+          const sunday = new Date(d.getTime() + 86400000);
+          const label = `Sam ${format(d, "d", { locale: fr })} - Dim ${format(sunday, "d MMM", { locale: fr })}`;
+
+          return (
+            <div key={date} className="rounded-lg border bg-gray-50 p-3">
+              <p className="text-xs font-medium text-gray-600 mb-2">{label}</p>
+              <div className="flex flex-wrap gap-2">
+                {members.map((m) => {
+                  const present = isPresent(m.id, date);
+                  const isMe = m.id === currentMemberId;
+
                   return (
-                    <th
-                      key={date}
-                      className="pb-2 px-1 text-center text-gray-500 font-medium min-w-[60px]"
+                    <button
+                      key={m.id}
+                      type="button"
+                      disabled={!isMe || isPending}
+                      onClick={() => isMe && handleToggle(date)}
+                      className={`flex items-center gap-1.5 rounded-full pl-0.5 pr-2.5 py-0.5 text-xs transition-colors ${
+                        present
+                          ? "bg-green-100 text-green-700 border border-green-200"
+                          : "bg-gray-100 text-gray-400 border border-gray-200"
+                      } ${
+                        isMe ? "active:ring-2 active:ring-indigo-300" : ""
+                      }`}
                     >
-                      <div>{format(d, "d", { locale: fr })}-{format(new Date(d.getTime() + 86400000), "d", { locale: fr })}</div>
-                      <div className="text-[10px]">{format(d, "MMM", { locale: fr })}</div>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <tr key={m.id}>
-                  <td className="pr-3 py-1.5">
-                    <div className="flex items-center gap-1.5">
                       <Avatar className="h-5 w-5">
                         <AvatarImage src={m.avatar_url || undefined} />
-                        <AvatarFallback className="text-[9px] bg-indigo-100 text-indigo-700">
+                        <AvatarFallback
+                          className={`text-[9px] ${
+                            present
+                              ? "bg-green-200 text-green-800"
+                              : "bg-gray-200 text-gray-500"
+                          }`}
+                        >
                           {getInitials(m.display_name)}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="text-gray-700 truncate max-w-[80px]">
-                        {m.display_name}
+                      <span className="truncate max-w-[60px]">
+                        {m.display_name.split(" ")[0]}
                       </span>
-                    </div>
-                  </td>
-                  {weekends.map((date) => {
-                    const present = isPresent(m.id, date);
-                    const isMe = m.id === currentMemberId;
-                    return (
-                      <td key={date} className="px-1 py-1.5 text-center">
-                        <button
-                          type="button"
-                          disabled={!isMe || isPending}
-                          onClick={() => isMe && handleToggle(date)}
-                          className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm transition-colors ${
-                            present
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-400"
-                          } ${
-                            isMe
-                              ? "cursor-pointer hover:ring-2 hover:ring-indigo-300"
-                              : "cursor-default"
-                          }`}
-                          title={
-                            isMe
-                              ? present
-                                ? "Cliquer pour marquer absent"
-                                : "Cliquer pour marquer présent"
-                              : present
-                                ? "Présent"
-                                : "Absent"
-                          }
-                        >
-                          {present ? "✓" : "✗"}
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      {present ? (
+                        <Check className="h-3 w-3 flex-shrink-0" />
+                      ) : (
+                        <X className="h-3 w-3 flex-shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
