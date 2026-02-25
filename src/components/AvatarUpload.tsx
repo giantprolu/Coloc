@@ -82,11 +82,6 @@ export function AvatarUpload({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Le fichier ne doit pas dépasser 2 Mo");
-      return;
-    }
-
     const url = URL.createObjectURL(file);
     setImageSrc(url);
     setCrop({ x: 0, y: 0 });

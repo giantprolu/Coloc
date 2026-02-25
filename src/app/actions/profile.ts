@@ -30,10 +30,6 @@ export async function updateAvatar(formData: FormData) {
   const file = formData.get("avatar") as File;
   if (!file || file.size === 0) throw new Error("Aucun fichier");
 
-  if (file.size > 2 * 1024 * 1024) {
-    throw new Error("Le fichier ne doit pas dépasser 2 Mo");
-  }
-
   const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
   const allowedExts = ["jpg", "jpeg", "png", "webp"];
   if (!allowedExts.includes(ext)) {
