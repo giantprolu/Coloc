@@ -216,7 +216,7 @@ export default async function DashboardPage() {
               Ce soir &amp; prochainement
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             {upcomingEvents.slice(0, 3).map((event) => (
               <Link key={event.id} href={`/events/${event.id}`}>
                 <div className="rounded-lg bg-white p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
@@ -337,6 +337,7 @@ export default async function DashboardPage() {
             {recentMessages.reverse().map((msg) => (
               <div key={msg.id} className="flex gap-2">
                 <Avatar className="h-6 w-6 flex-shrink-0 mt-0.5">
+                  <AvatarImage src={msg.member?.avatar_url || undefined} />
                   <AvatarFallback className="text-xs bg-indigo-100 text-indigo-700">
                     {msg.member ? getInitials(msg.member.display_name) : "?"}
                   </AvatarFallback>

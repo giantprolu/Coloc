@@ -1,0 +1,5 @@
+- [x] faire un espacement entre les card des events dans le dashboard
+- [x] il faut que ceux qui ont des photos de profiles sur toute l'app il ne faut pas leurs initial mais bien la phots que ce soit dans :
+    - chat
+    - chat d'event
+    - dans la card "Weekends"
