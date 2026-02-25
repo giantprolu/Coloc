@@ -273,9 +273,9 @@ export function WeekendPlanner({
                           ))}
                         </div>
                         <span className="text-[10px] text-gray-400 ml-0.5">
-                          {otherPresent.length === 1
-                            ? otherPresent[0].display_name.split(" ")[0]
-                            : `${otherPresent.length} présents`}
+                          {otherPresent.length <= 3
+                            ? otherPresent.map(m => m.display_name.split(" ")[0]).join(", ")
+                            : `${otherPresent.slice(0, 2).map(m => m.display_name.split(" ")[0]).join(", ")} +${otherPresent.length - 2}`}
                         </span>
                       </div>
                     )}

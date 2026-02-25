@@ -44,10 +44,14 @@ export async function updateAvatar(formData: FormData) {
 
   const admin = createAdminClient();
 
+  // Convertir le File en Buffer pour l'upload serveur
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
   // Upload (upsert) vers le bucket avatars
   const { error: uploadError } = await admin.storage
     .from("avatars")
-    .upload(filePath, file, {
+    .upload(filePath, buffer, {
       upsert: true,
       contentType: file.type,
     });
