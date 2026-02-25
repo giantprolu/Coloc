@@ -216,49 +216,43 @@ export default async function DashboardPage() {
               Ce soir &amp; prochainement
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {upcomingEvents.slice(0, 3).map((event) => (
-              <Link key={event.id} href={`/events/${event.id}`}>
-                <div className="rounded-lg bg-white p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">
-                        {event.title}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {formatEventDate(event.start_at, event.end_at)}
-                      </p>
-                      {event.guest_count > 0 && (
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {event.guest_count} invité{event.guest_count > 1 ? "s" : ""}
+          <CardContent>
+            <div className="flex flex-col gap-3 max-h-72 overflow-y-auto">
+              {upcomingEvents.map((event) => (
+                <Link key={event.id} href={`/events/${event.id}`}>
+                  <div className="rounded-lg bg-white p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">
+                          {event.title}
                         </p>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge
-                        variant="secondary"
-                        className="text-xs whitespace-nowrap"
-                      >
-                        {NOISE_LEVEL_LABELS[event.noise_level as keyof typeof NOISE_LEVEL_LABELS]}
-                      </Badge>
-                      {event.reactions && event.reactions.length > 0 && (
-                        <span className="text-xs text-gray-400">
-                          {event.reactions.length} réaction{event.reactions.length > 1 ? "s" : ""}
-                        </span>
-                      )}
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {formatEventDate(event.start_at, event.end_at)}
+                        </p>
+                        {event.guest_count > 0 && (
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {event.guest_count} invité{event.guest_count > 1 ? "s" : ""}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge
+                          variant="secondary"
+                          className="text-xs whitespace-nowrap"
+                        >
+                          {NOISE_LEVEL_LABELS[event.noise_level as keyof typeof NOISE_LEVEL_LABELS]}
+                        </Badge>
+                        {event.reactions && event.reactions.length > 0 && (
+                          <span className="text-xs text-gray-400">
+                            {event.reactions.length} réaction{event.reactions.length > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Link>
-            ))}
-            {upcomingEvents.length > 3 && (
-              <Link
-                href="/calendar"
-                className="block text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-              >
-                Voir tous les événements →
-              </Link>
-            )}
+                </Link>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

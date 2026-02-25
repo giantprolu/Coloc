@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { calculateBalances, formatAmount } from "@/lib/expenses";
+import { calculateBalances, calculatePairwiseDebts, formatAmount } from "@/lib/expenses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
-import { Plus, Receipt, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, Receipt } from "lucide-react";
+import { ExpenseActions } from "@/components/expenses/ExpenseActions";
+import { BalanceCard } from "@/components/expenses/BalanceCard";
 
 export default async function ExpensesPage() {
   const supabase = await createClient();
@@ -39,6 +40,14 @@ export default async function ExpensesPage() {
     .eq("colocation_id", member.colocation_id)
     .order("created_at", { ascending: false });
 
+  const { data: events } = await supabase
+    .from("events")
+    .select("id, title")
+    .eq("colocation_id", member.colocation_id)
+    .neq("status", "cancelled")
+    .order("start_at", { ascending: false })
+    .limit(10);
+
   const balances = members && expenses
     ? calculateBalances(
         members,
@@ -54,6 +63,25 @@ export default async function ExpensesPage() {
     : [];
 
   const myBalance = balances.find((b) => b.member.id === member.id);
+
+  const parsedExpenses = expenses
+    ? expenses.map((e) => ({
+        ...e,
+        amount: parseFloat(e.amount),
+        splits: e.splits?.map((s: { amount: string | number; member_id: string }) => ({
+          ...s,
+          amount: parseFloat(String(s.amount)),
+        })),
+      }))
+    : [];
+
+  const pairwiseDebts = calculatePairwiseDebts(member.id, parsedExpenses);
+  const memberMap = new Map((members || []).map((m) => [m.id, m.display_name]));
+  const debtsArray = Object.entries(pairwiseDebts).map(([memberId, amount]) => ({
+    memberId,
+    displayName: memberMap.get(memberId) || "Inconnu",
+    amount,
+  }));
 
   return (
     <div className="space-y-4 p-4">
@@ -72,47 +100,7 @@ export default async function ExpensesPage() {
 
       {/* Mon solde */}
       {myBalance && (
-        <Card
-          className={
-            myBalance.balance > 0
-              ? "border-green-200 bg-green-50"
-              : myBalance.balance < 0
-              ? "border-red-200 bg-red-50"
-              : ""
-          }
-        >
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              {myBalance.balance >= 0 ? (
-                <TrendingUp className="h-8 w-8 text-green-600" />
-              ) : (
-                <TrendingDown className="h-8 w-8 text-red-600" />
-              )}
-              <div>
-                <p className="text-sm text-gray-600">Mon solde</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    myBalance.balance > 0
-                      ? "text-green-700"
-                      : myBalance.balance < 0
-                      ? "text-red-700"
-                      : "text-gray-700"
-                  }`}
-                >
-                  {myBalance.balance >= 0 ? "+" : ""}
-                  {formatAmount(myBalance.balance)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {myBalance.balance > 0
-                    ? "On vous doit de l'argent"
-                    : myBalance.balance < 0
-                    ? "Vous devez de l'argent"
-                    : "Vous êtes à l'équilibre"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <BalanceCard balance={myBalance.balance} debts={debtsArray} />
       )}
 
       {/* Soldes des membres */}
@@ -171,9 +159,26 @@ export default async function ExpensesPage() {
                     {formatDate(expense.created_at, "d MMM")}
                   </p>
                 </div>
-                <span className="text-sm font-semibold text-gray-900 ml-2">
-                  {formatAmount(parseFloat(expense.amount))}
-                </span>
+                <div className="flex items-center gap-1 ml-2">
+                  <span className="text-sm font-semibold text-gray-900">
+                    {formatAmount(parseFloat(expense.amount))}
+                  </span>
+                  {expense.paid_by === member.id && (
+                    <ExpenseActions
+                      expense={{
+                        ...expense,
+                        amount: parseFloat(expense.amount),
+                        splits: expense.splits?.map((s: { member_id: string; amount: string | number; member?: { display_name: string } }) => ({
+                          member_id: s.member_id,
+                          amount: parseFloat(String(s.amount)),
+                          member: s.member,
+                        })),
+                      }}
+                      members={(members || []).map((m) => ({ id: m.id, display_name: m.display_name }))}
+                      events={events || []}
+                    />
+                  )}
+                </div>
               </div>
             ))
           ) : (

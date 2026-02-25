@@ -38,6 +38,33 @@ export function formatAmount(amount: number): string {
   }).format(amount);
 }
 
+// Calcule les dettes par paire pour un membre donné
+// Retourne { memberId: net } où positif = l'autre me doit, négatif = je lui dois
+export function calculatePairwiseDebts(
+  myId: string,
+  expenses: Expense[]
+): Record<string, number> {
+  const debts: Record<string, number> = {};
+
+  expenses.forEach((expense) => {
+    if (!expense.paid_by || !expense.splits) return;
+
+    expense.splits.forEach((split) => {
+      if (split.member_id === expense.paid_by) return;
+
+      if (expense.paid_by === myId) {
+        // J'ai payé → l'autre me doit sa part
+        debts[split.member_id] = (debts[split.member_id] || 0) + split.amount;
+      } else if (split.member_id === myId) {
+        // Quelqu'un d'autre a payé et je suis dans les splits → je lui dois
+        debts[expense.paid_by!] = (debts[expense.paid_by!] || 0) - split.amount;
+      }
+    });
+  });
+
+  return debts;
+}
+
 // Calcule la répartition équitable d'une dépense
 export function splitEqually(amount: number, memberCount: number): number {
   return Math.round((amount / memberCount) * 100) / 100;
