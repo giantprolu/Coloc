@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Routes publiques (non protégées)
-  const publicRoutes = ["/login", "/signup", "/auth/callback"];
+  const publicRoutes = ["/login", "/signup", "/auth/callback", "/forgot-password", "/reset-password"];
   const isPublicRoute = publicRoutes.some((route) =>
     pathname.startsWith(route)
   );
@@ -55,7 +55,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirige les utilisateurs connectés loin des pages d'auth
-  if (user && isPublicRoute && !pathname.startsWith("/auth")) {
+  // (sauf /reset-password qui nécessite une session active)
+  if (user && isPublicRoute && !pathname.startsWith("/auth") && !pathname.startsWith("/reset-password")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
