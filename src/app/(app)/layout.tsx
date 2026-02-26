@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/BottomNav";
 import { RealtimeRefresher } from "@/components/RealtimeRefresher";
 import { Toaster } from "@/components/ui/sonner";
+import { PasswordBanner } from "@/components/PasswordBanner";
 
 export default async function AppLayout({
   children,
@@ -43,6 +44,7 @@ export default async function AppLayout({
       </a>
       {/* Écoute les broadcasts de la coloc pour rafraîchir l'UI en temps réel */}
       <RealtimeRefresher colocationId={member.colocation_id} />
+      <PasswordBanner />
       <main id="main-content" className="mx-auto max-w-md pb-20">{children}</main>
       <BottomNav />
       <Toaster position="top-center" richColors />

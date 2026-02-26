@@ -1,41 +1,50 @@
 "use client";
 
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Home } from "lucide-react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isSent, setIsSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const supabase = createClient();
 
-  const handleMagicLink = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    try {
-      const res = await fetch("/api/auth/magic-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Erreur lors de l'envoi du lien.");
-      } else {
-        setIsSent(true);
-      }
-    } catch {
-      setError("Erreur réseau. Vérifiez votre connexion.");
+    if (error) {
+      setError(
+        error.message === "Invalid login credentials"
+          ? "Email ou mot de passe incorrect."
+          : "Erreur lors de la connexion."
+      );
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(false);
+    router.push("/dashboard");
   };
 
   return (
@@ -51,51 +60,52 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isSent ? (
-            <div className="text-center space-y-3">
-              <div className="text-4xl">📧</div>
-              <p className="font-medium text-gray-900">Vérifiez vos emails !</p>
-              <p className="text-sm text-gray-500">
-                Un lien de connexion a été envoyé à{" "}
-                <span className="font-medium">{email}</span>
-              </p>
-              <Button
-                variant="ghost"
-                className="text-sm"
-                onClick={() => setIsSent(false)}
-              >
-                Utiliser une autre adresse
-              </Button>
+          <form onSubmit={handleLogin} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="email">Adresse email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="toi@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
-          ) : (
-            <>
-              <form onSubmit={handleMagicLink} className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Adresse email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="toi@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                {error && (
-                  <p className="text-sm text-red-600 bg-red-50 rounded-md p-2">
-                    {error}
-                  </p>
-                )}
-                <Button
-                  type="submit"
-                  className="w-full bg-indigo-600 hover:bg-indigo-700"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Envoi en cours..." : "Recevoir un lien de connexion"}
-                </Button>
-              </form>
-            </>
-          )}
+            <div className="space-y-2">
+              <Label htmlFor="password">Mot de passe</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-md p-2">
+                {error}
+              </p>
+            )}
+            <Button
+              type="submit"
+              className="w-full bg-indigo-600 hover:bg-indigo-700"
+              disabled={isLoading}
+            >
+              {isLoading ? "Connexion..." : "Se connecter"}
+            </Button>
+          </form>
+          <p className="text-center text-sm text-gray-500">
+            Pas encore de compte ?{" "}
+            <Link
+              href="/signup"
+              className="font-medium text-indigo-600 hover:text-indigo-500"
+            >
+              Créer un compte
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

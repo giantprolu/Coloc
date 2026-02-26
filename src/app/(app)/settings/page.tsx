@@ -18,6 +18,7 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { LeaveColocButton } from "@/components/LeaveColocButton";
 import { DeleteAccountButton } from "@/components/DeleteAccountButton";
 import { CopyInviteCode } from "@/components/CopyInviteCode";
+import { SetPasswordForm } from "@/components/SetPasswordForm";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -108,6 +109,9 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Mot de passe */}
+      <SetPasswordForm />
 
       {/* Liens paramètres */}
       <Card>

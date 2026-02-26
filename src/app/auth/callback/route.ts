@@ -12,14 +12,14 @@ export async function GET(request: Request) {
   let authError = null;
 
   if (code) {
-    // PKCE flow (signInWithOtp standard)
+    // PKCE flow (signUp email confirmation)
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     authError = error;
   } else if (token_hash && type) {
-    // Token flow (admin generateLink)
+    // Token flow (email confirmation)
     const { error } = await supabase.auth.verifyOtp({
       token_hash,
-      type: type as "magiclink" | "email",
+      type: type as "email" | "signup",
     });
     authError = error;
   } else {
