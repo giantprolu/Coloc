@@ -1,12 +1,11 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { headers } from "next/headers";
+
 
 export async function resetPasswordForEmail(email: string) {
   const supabase = await createClient();
-  const headersList = await headers();
-  const origin = headersList.get("origin") || headersList.get("referer")?.replace(/\/forgot-password.*/, "") || "";
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://app.trouve-tout-conseil.fr";
 
   console.log("[forgot-password] Sending reset email to:", email);
   console.log("[forgot-password] Redirect URL:", `${origin}/auth/callback?next=/reset-password`);
