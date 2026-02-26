@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     // Token flow (email confirmation)
     const { error } = await supabase.auth.verifyOtp({
       token_hash,
-      type: type as "email" | "signup",
+      type: type as "email" | "signup" | "recovery",
     });
     authError = error;
   } else {

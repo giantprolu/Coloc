@@ -111,7 +111,7 @@ export default async function SettingsPage() {
       )}
 
       {/* Mot de passe */}
-      <SetPasswordForm />
+      <SetPasswordForm passwordInitialized={!!user.user_metadata?.password_initialized} />
 
       {/* Liens paramètres */}
       <Card>
