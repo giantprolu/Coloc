@@ -266,6 +266,32 @@ export async function fetchReactionsForMessages(messageIds: string[]) {
 }
 
 /**
+ * Modifie le contenu d'un message (uniquement ses propres messages).
+ */
+export async function editChatMessage(messageId: string, newContent: string) {
+  const member = await getAuthenticatedMember();
+  const admin = createAdminClient();
+
+  const { data: message } = await admin
+    .from("chat_messages")
+    .select("id, member_id")
+    .eq("id", messageId)
+    .single();
+
+  if (!message) throw new Error("Message introuvable");
+  if (message.member_id !== member.id)
+    throw new Error("Vous ne pouvez modifier que vos propres messages");
+
+  const { error } = await admin
+    .from("chat_messages")
+    .update({ content: newContent, edited_at: new Date().toISOString() })
+    .eq("id", messageId);
+
+  if (error) throw new Error("Impossible de modifier le message");
+  return { success: true };
+}
+
+/**
  * Supprime un message (uniquement ses propres messages).
  */
 export async function deleteChatMessage(messageId: string) {

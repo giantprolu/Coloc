@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { ChatMessage, ChatMessageReaction } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials, formatTime } from "@/lib/utils";
-import { Reply, Smile } from "lucide-react";
+import { Reply, Smile, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
@@ -17,6 +17,7 @@ interface MessageBubbleProps {
   onReply: (message: ChatMessage) => void;
   onDelete: (messageId: string) => void;
   onReaction: (messageId: string, emoji: string) => void;
+  onEdit: (message: ChatMessage) => void;
 }
 
 export function MessageBubble({
@@ -27,6 +28,7 @@ export function MessageBubble({
   onReply,
   onDelete,
   onReaction,
+  onEdit,
 }: MessageBubbleProps) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -135,7 +137,7 @@ export function MessageBubble({
         <div className="relative">
           <div
             className={cn(
-              "rounded-2xl px-3 py-2 text-sm select-none",
+              "rounded-2xl px-3 py-2 text-sm select-none whitespace-pre-wrap break-words",
               isOwn
                 ? "bg-indigo-600 text-white rounded-br-sm"
                 : "bg-white text-gray-900 border shadow-sm rounded-bl-sm"
@@ -151,9 +153,17 @@ export function MessageBubble({
             }}
           >
             {message.content}
+            {message.edited_at && (
+              <span className={cn(
+                "text-xs ml-1 italic",
+                isOwn ? "text-indigo-200" : "text-gray-400"
+              )}>
+                (modifié)
+              </span>
+            )}
           </div>
 
-          {/* Boutons d'action : répondre + emoji (toujours visibles, discrets) */}
+          {/* Boutons d'action : répondre + emoji + modifier */}
           <div
             className={cn(
               "flex items-center gap-1 mt-0.5",
@@ -176,6 +186,16 @@ export function MessageBubble({
             >
               <Reply className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
+            {isOwn && (
+              <button
+                type="button"
+                onClick={() => onEdit(message)}
+                aria-label="Modifier le message"
+                className="p-1 rounded-full text-gray-300 active:bg-gray-100 active:text-gray-500"
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
           </div>
 
           {/* Emoji picker rapide */}

@@ -9,6 +9,7 @@ import {
   fetchSingleMessage,
   toggleMessageReaction as toggleReactionAction,
   deleteChatMessage as deleteChatMessageAction,
+  editChatMessage as editChatMessageAction,
   fetchReactionsForMessages,
 } from "@/app/actions/chat";
 
@@ -120,6 +121,19 @@ export function useRealtimeChat({
         const { id } = payload as { id: string };
         setMessages((prev) => prev.filter((m) => m.id !== id));
       })
+      .on("broadcast", { event: "edit_message" }, async ({ payload }) => {
+        const { id } = payload as { id: string };
+        try {
+          const data = await fetchSingleMessage(id);
+          if (data) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === id ? (data as ChatMessage) : m))
+            );
+          }
+        } catch (err) {
+          console.error("Chat edit fetch error:", err);
+        }
+      })
       .on("broadcast", { event: "reaction_update" }, async ({ payload }) => {
         const { messageId } = payload as { messageId: string };
         // Recharger les réactions pour ce message
@@ -137,6 +151,28 @@ export function useRealtimeChat({
         async (payload) => {
           const id = (payload as unknown as { new: { id: string } }).new.id;
           await fetchAndMerge(id);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "chat_messages",
+          filter: `channel_id=eq.${channelId}`,
+        },
+        async (payload) => {
+          const id = (payload as unknown as { new: { id: string } }).new.id;
+          try {
+            const data = await fetchSingleMessage(id);
+            if (data) {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === id ? (data as ChatMessage) : m))
+              );
+            }
+          } catch (err) {
+            console.error("Chat update fetch error:", err);
+          }
         }
       )
       .on(
@@ -203,6 +239,7 @@ export function useRealtimeChat({
         content,
         reply_to: replyTo || null,
         is_system: false,
+        edited_at: null,
         created_at: new Date().toISOString(),
         member: currentMember,
       };
@@ -261,6 +298,42 @@ export function useRealtimeChat({
     [mergeMessages]
   );
 
+  // ─── Modification de message ─────────────────────────────────────────────
+  const editMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      // Optimistic: met à jour immédiatement
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, content: newContent, edited_at: new Date().toISOString() }
+            : m
+        )
+      );
+
+      try {
+        await editChatMessageAction(messageId, newContent);
+
+        // Broadcast aux autres clients
+        await channelRef.current?.send({
+          type: "broadcast",
+          event: "edit_message",
+          payload: { id: messageId },
+        });
+      } catch (err) {
+        console.error("Chat edit error:", err);
+        // Recharger en cas d'erreur
+        const data = await fetchSingleMessage(messageId);
+        if (data) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === messageId ? (data as ChatMessage) : m))
+          );
+        }
+        throw err;
+      }
+    },
+    []
+  );
+
   // ─── Toggle réaction ──────────────────────────────────────────────────────
   const toggleReaction = useCallback(
     async (messageId: string, emoji: string) => {
@@ -290,5 +363,5 @@ export function useRealtimeChat({
     []
   );
 
-  return { messages, isLoading, sendMessage, deleteMessage, toggleReaction };
+  return { messages, isLoading, sendMessage, deleteMessage, editMessage, toggleReaction };
 }

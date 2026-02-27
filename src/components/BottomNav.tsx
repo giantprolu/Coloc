@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Calendar, MessageSquare, Settings } from "lucide-react";
@@ -14,6 +15,20 @@ const navItems = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    const hide = () => setHidden(true);
+    const show = () => setHidden(false);
+    window.addEventListener("chat-input-focus", hide);
+    window.addEventListener("chat-input-blur", show);
+    return () => {
+      window.removeEventListener("chat-input-focus", hide);
+      window.removeEventListener("chat-input-blur", show);
+    };
+  }, []);
+
+  if (hidden) return null;
 
   return (
     <nav aria-label="Navigation principale" className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white/95 backdrop-blur-sm">

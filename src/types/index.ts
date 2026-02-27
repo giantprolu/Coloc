@@ -85,6 +85,7 @@ export interface ChatMessage {
   content: string;
   reply_to: string | null;
   is_system: boolean;
+  edited_at: string | null;
   created_at: string;
   // Relations jointes
   member?: Member;
