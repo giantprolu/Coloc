@@ -1,61 +1,64 @@
 "use server";
 
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
-import { UserRole } from "@/types";
 import { revalidatePath } from "next/cache";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import type { UserRole } from "@/types";
 
 function createAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+	return createClient(
+		process.env.NEXT_PUBLIC_SUPABASE_URL!,
+		process.env.SUPABASE_SERVICE_ROLE_KEY!,
+	);
 }
 
 export async function updateMemberRole(memberId: string, newRole: UserRole) {
-  const supabase = await createServerClient();
+	const supabase = await createServerClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Non authentifié");
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Non authentifié");
 
-  // Vérifie que l'utilisateur actuel est admin
-  const { data: currentMember } = await supabase
-    .from("members")
-    .select("id, role, colocation_id")
-    .eq("user_id", user.id)
-    .single();
+	// Vérifie que l'utilisateur actuel est admin
+	const { data: currentMember } = await supabase
+		.from("members")
+		.select("id, role, colocation_id")
+		.eq("user_id", user.id)
+		.single();
 
-  if (!currentMember || currentMember.role !== "admin") {
-    throw new Error("Seuls les admins peuvent changer les rôles");
-  }
+	if (!currentMember || currentMember.role !== "admin") {
+		throw new Error("Seuls les admins peuvent changer les rôles");
+	}
 
-  // Vérifie que le membre cible est dans la même colocation
-  const { data: targetMember } = await supabase
-    .from("members")
-    .select("id, colocation_id")
-    .eq("id", memberId)
-    .single();
+	// Vérifie que le membre cible est dans la même colocation
+	const { data: targetMember } = await supabase
+		.from("members")
+		.select("id, colocation_id")
+		.eq("id", memberId)
+		.single();
 
-  if (!targetMember || targetMember.colocation_id !== currentMember.colocation_id) {
-    throw new Error("Membre introuvable");
-  }
+	if (
+		!targetMember ||
+		targetMember.colocation_id !== currentMember.colocation_id
+	) {
+		throw new Error("Membre introuvable");
+	}
 
-  // Ne pas se rétrograder soi-même
-  if (memberId === currentMember.id) {
-    throw new Error("Vous ne pouvez pas modifier votre propre rôle");
-  }
+	// Ne pas se rétrograder soi-même
+	if (memberId === currentMember.id) {
+		throw new Error("Vous ne pouvez pas modifier votre propre rôle");
+	}
 
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("members")
-    .update({ role: newRole })
-    .eq("id", memberId);
+	const admin = createAdminClient();
+	const { error } = await admin
+		.from("members")
+		.update({ role: newRole })
+		.eq("id", memberId);
 
-  if (error) throw new Error("Impossible de modifier le rôle");
+	if (error) throw new Error("Impossible de modifier le rôle");
 
-  revalidatePath("/settings/coloc");
+	revalidatePath("/settings/coloc");
 }
 
 /**
@@ -63,29 +66,26 @@ export async function updateMemberRole(memberId: string, newRole: UserRole) {
  * Supprime l'enregistrement membre (les cascades DB gèrent le reste).
  */
 export async function leaveColocation() {
-  const supabase = await createServerClient();
+	const supabase = await createServerClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Non authentifié");
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Non authentifié");
 
-  const { data: member } = await supabase
-    .from("members")
-    .select("id, colocation_id")
-    .eq("user_id", user.id)
-    .single();
+	const { data: member } = await supabase
+		.from("members")
+		.select("id, colocation_id")
+		.eq("user_id", user.id)
+		.single();
 
-  if (!member) throw new Error("Membre introuvable");
+	if (!member) throw new Error("Membre introuvable");
 
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("members")
-    .delete()
-    .eq("id", member.id);
+	const admin = createAdminClient();
+	const { error } = await admin.from("members").delete().eq("id", member.id);
 
-  if (error) {
-    console.error("Leave coloc error:", error);
-    throw new Error("Impossible de quitter la colocation");
-  }
+	if (error) {
+		console.error("Leave coloc error:", error);
+		throw new Error("Impossible de quitter la colocation");
+	}
 }

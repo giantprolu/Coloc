@@ -1,8 +1,8 @@
 {
-  "crons": [
-    { "path": "/api/cron/reminders", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/vote-close", "schedule": "0 0 * * *" },
-    { "path": "/api/cron/chore-rotate", "schedule": "0 0 * * 1" },
-    { "path": "/api/cron/announcements-cleanup", "schedule": "0 3 * * *" }
-  ]
+	"crons": [
+		{ "path": "/api/cron/reminders", "schedule": "0 9 * * *" },
+		{ "path": "/api/cron/vote-close", "schedule": "0 0 * * *" },
+		{ "path": "/api/cron/chore-rotate", "schedule": "0 0 * * 1" },
+		{ "path": "/api/cron/announcements-cleanup", "schedule": "0 3 * * *" }
+	]
 }

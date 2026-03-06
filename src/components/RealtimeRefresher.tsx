@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -12,59 +12,59 @@ import { createClient } from "@/lib/supabase/client";
  * suppression d'événement, etc.) sans recharger manuellement la page.
  */
 export function RealtimeRefresher({ colocationId }: { colocationId: string }) {
-  const router = useRouter();
-  const supabase = createClient();
+	const router = useRouter();
+	const supabase = createClient();
 
-  useEffect(() => {
-    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+	useEffect(() => {
+		let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    // Debounce les refreshes pour éviter les rafales
-    const debouncedRefresh = () => {
-      if (refreshTimeout) clearTimeout(refreshTimeout);
-      refreshTimeout = setTimeout(() => {
-        router.refresh();
-      }, 300);
-    };
+		// Debounce les refreshes pour éviter les rafales
+		const debouncedRefresh = () => {
+			if (refreshTimeout) clearTimeout(refreshTimeout);
+			refreshTimeout = setTimeout(() => {
+				router.refresh();
+			}, 300);
+		};
 
-    const channel = supabase
-      .channel(`coloc-refresh:${colocationId}`)
-      // Broadcast — mécanisme principal (rapide, pas de config)
-      .on("broadcast", { event: "refresh" }, () => {
-        debouncedRefresh();
-      })
-      // postgres_changes — backup pour les changements de présence
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "members",
-          filter: `colocation_id=eq.${colocationId}`,
-        },
-        () => {
-          debouncedRefresh();
-        }
-      )
-      // postgres_changes — backup pour les annonces
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "announcements",
-          filter: `colocation_id=eq.${colocationId}`,
-        },
-        () => {
-          debouncedRefresh();
-        }
-      )
-      .subscribe();
+		const channel = supabase
+			.channel(`coloc-refresh:${colocationId}`)
+			// Broadcast — mécanisme principal (rapide, pas de config)
+			.on("broadcast", { event: "refresh" }, () => {
+				debouncedRefresh();
+			})
+			// postgres_changes — backup pour les changements de présence
+			.on(
+				"postgres_changes",
+				{
+					event: "UPDATE",
+					schema: "public",
+					table: "members",
+					filter: `colocation_id=eq.${colocationId}`,
+				},
+				() => {
+					debouncedRefresh();
+				},
+			)
+			// postgres_changes — backup pour les annonces
+			.on(
+				"postgres_changes",
+				{
+					event: "*",
+					schema: "public",
+					table: "announcements",
+					filter: `colocation_id=eq.${colocationId}`,
+				},
+				() => {
+					debouncedRefresh();
+				},
+			)
+			.subscribe();
 
-    return () => {
-      if (refreshTimeout) clearTimeout(refreshTimeout);
-      supabase.removeChannel(channel);
-    };
-  }, [colocationId, router, supabase]);
+		return () => {
+			if (refreshTimeout) clearTimeout(refreshTimeout);
+			supabase.removeChannel(channel);
+		};
+	}, [colocationId, router, supabase]);
 
-  return null;
+	return null;
 }
