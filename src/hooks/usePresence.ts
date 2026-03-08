@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Member, PresenceStatus } from "@/types";
 
 export function usePresence(colocationId: string) {
 	const [members, setMembers] = useState<Member[]>([]);
-	const supabase = createClient();
+	const supabase = useMemo(() => createClient(), []);
 	const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
 	useEffect(() => {
@@ -74,7 +74,7 @@ export function usePresence(colocationId: string) {
 			supabase.removeChannel(channel);
 			channelRef.current = null;
 		};
-	}, [colocationId]);
+	}, [colocationId, supabase]);
 
 	const updatePresence = async (
 		memberId: string,

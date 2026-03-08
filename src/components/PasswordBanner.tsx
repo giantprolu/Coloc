@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const DISMISSED_KEY = "password-banner-dismissed";
 
@@ -11,19 +11,14 @@ interface PasswordBannerProps {
 }
 
 export function PasswordBanner({ passwordInitialized }: PasswordBannerProps) {
-	const [visible, setVisible] = useState(false);
-
-	useEffect(() => {
-		// Si le mot de passe est déjà défini, ne jamais afficher
+	const [visible, setVisible] = useState(() => {
+		if (typeof window === "undefined") return false;
 		if (passwordInitialized) {
 			localStorage.removeItem(DISMISSED_KEY);
-			return;
+			return false;
 		}
-		const dismissed = localStorage.getItem(DISMISSED_KEY);
-		if (!dismissed) {
-			setVisible(true);
-		}
-	}, [passwordInitialized]);
+		return !localStorage.getItem(DISMISSED_KEY);
+	});
 
 	const dismiss = () => {
 		localStorage.setItem(DISMISSED_KEY, "1");

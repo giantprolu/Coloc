@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendPushToMany } from "@/lib/push";
@@ -10,11 +11,17 @@ function createAdminClient() {
 	);
 }
 
+function isValidCronSecret(authHeader: string | null): boolean {
+	const expected = `Bearer ${process.env.CRON_SECRET}`;
+	if (!authHeader || authHeader.length !== expected.length) return false;
+	return timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+}
+
 // Cron : envoie des rappels 24h avant chaque événement
 export async function GET(request: Request) {
 	// Vérifie le secret cron
 	const authHeader = request.headers.get("authorization");
-	if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+	if (!isValidCronSecret(authHeader)) {
 		return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 	}
 

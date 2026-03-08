@@ -48,7 +48,7 @@ export default async function CalendarPage() {
 					<CleanupEventsButton colocationId={member.colocation_id} />
 				)}
 			</div>
-			<CalendarView events={events || []} memberId={member.id} />
+			<CalendarView events={events || []} />
 		</div>
 	);
 }

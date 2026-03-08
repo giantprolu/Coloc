@@ -4,7 +4,7 @@ import { Pencil, Reply, Smile } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, formatTime, getInitials } from "@/lib/utils";
-import { type ChatMessage, ChatMessageReaction, type Member } from "@/types";
+import { type ChatMessage, type Member } from "@/types";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 

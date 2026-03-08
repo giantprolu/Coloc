@@ -9,10 +9,13 @@ import {
 
 export function InstallAppButton() {
 	const [available, setAvailable] = useState(false);
-	const [isStandalone, setIsStandalone] = useState(false);
+	const [isStandalone] = useState(
+		() =>
+			typeof window !== "undefined" &&
+			window.matchMedia("(display-mode: standalone)").matches,
+	);
 
 	useEffect(() => {
-		setIsStandalone(window.matchMedia("(display-mode: standalone)").matches);
 		// Check if the install prompt is available (event was captured)
 		const check = () => setAvailable(!!getInstallPrompt());
 		check();

@@ -88,7 +88,7 @@ export function NewExpenseForm({
 
 			toast.success("Dépense ajoutée !");
 			router.push("/expenses");
-		} catch (err) {
+		} catch {
 			toast.error("Erreur lors de l'ajout de la dépense");
 		} finally {
 			setIsLoading(false);

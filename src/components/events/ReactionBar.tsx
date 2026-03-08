@@ -14,7 +14,6 @@ import {
 interface ReactionBarProps {
 	eventId: string;
 	memberId: string;
-	colocationId: string;
 	initialReactions: EventReaction[];
 	userReaction: ReactionType | null;
 }
@@ -22,7 +21,6 @@ interface ReactionBarProps {
 export function ReactionBar({
 	eventId,
 	memberId,
-	colocationId,
 	initialReactions,
 	userReaction: initialUserReaction,
 }: ReactionBarProps) {

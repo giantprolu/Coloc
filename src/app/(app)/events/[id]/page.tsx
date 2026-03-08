@@ -193,7 +193,6 @@ export default async function EventPage({ params }: EventPageProps) {
 					<ReactionBar
 						eventId={id}
 						memberId={member.id}
-						colocationId={member.colocation_id}
 						initialReactions={event.reactions || []}
 						userReaction={userReaction?.reaction || null}
 					/>

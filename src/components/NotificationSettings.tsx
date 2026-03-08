@@ -1,7 +1,7 @@
 "use client";
 
-import { Bell, BellOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Bell } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
@@ -46,18 +46,20 @@ export function NotificationSettings({
 	const [prefs, setPrefs] = useState<Partial<NotificationPreferences>>(
 		initialPrefs || {},
 	);
-	const [pushSupported, setPushSupported] = useState(false);
-	const [pushEnabled, setPushEnabled] = useState(false);
+	const [pushSupported] = useState(
+		() =>
+			typeof window !== "undefined" &&
+			"Notification" in window &&
+			"serviceWorker" in navigator,
+	);
+	const [pushEnabled, setPushEnabled] = useState(
+		() =>
+			typeof window !== "undefined" &&
+			"Notification" in window &&
+			Notification.permission === "granted",
+	);
 
 	const supabase = createClient();
-
-	useEffect(() => {
-		const supported = "Notification" in window && "serviceWorker" in navigator;
-		setPushSupported(supported);
-		if (supported) {
-			setPushEnabled(Notification.permission === "granted");
-		}
-	}, []);
 
 	const handleToggle = async (key: PrefKey) => {
 		const newValue = !prefs[key];
@@ -98,7 +100,7 @@ export function NotificationSettings({
 
 				toast.success("Notifications push activées !");
 			}
-		} catch (err) {
+		} catch {
 			toast.error("Impossible d'activer les notifications push");
 		}
 	};

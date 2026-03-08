@@ -1,13 +1,4 @@
-import {
-	Bell,
-	Bug,
-	ChevronRight,
-	Copy,
-	Home,
-	LogOut,
-	Smartphone,
-	User,
-} from "lucide-react";
+import { Bell, Bug, ChevronRight, Home, Smartphone } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { checkDevPermission } from "@/app/actions/dev";
@@ -19,11 +10,9 @@ import { InstallAppButton } from "@/components/InstallAppButton";
 import { LeaveColocButton } from "@/components/LeaveColocButton";
 import { LogoutButton } from "@/components/LogoutButton";
 import { SetPasswordForm } from "@/components/SetPasswordForm";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { getInitials } from "@/lib/utils";
 
 export default async function SettingsPage() {
 	const supabase = await createClient();

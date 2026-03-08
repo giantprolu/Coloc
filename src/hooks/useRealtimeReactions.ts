@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { EventReaction, ReactionType } from "@/types";
 
 export function useRealtimeReactions(eventId: string) {
 	const [reactions, setReactions] = useState<EventReaction[]>([]);
-	const supabase = createClient();
+	const supabase = useMemo(() => createClient(), []);
 
 	// Charge les réactions initiales
 	useEffect(() => {
@@ -20,7 +20,7 @@ export function useRealtimeReactions(eventId: string) {
 		};
 
 		loadReactions();
-	}, [eventId]);
+	}, [eventId, supabase]);
 
 	// Souscription temps réel
 	useEffect(() => {
@@ -69,7 +69,7 @@ export function useRealtimeReactions(eventId: string) {
 		return () => {
 			supabase.removeChannel(channel);
 		};
-	}, [eventId]);
+	}, [eventId, supabase]);
 
 	// Regroupe les réactions par type
 	const reactionCounts = reactions.reduce(

@@ -1,6 +1,7 @@
 import { createClient as createServerClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendPushToMany } from "@/lib/push";
+import { createClient } from "@/lib/supabase/server";
 
 // Utilise le service role pour accéder aux abonnements push
 function createAdminClient() {
@@ -12,14 +13,49 @@ function createAdminClient() {
 
 export async function POST(request: Request) {
 	try {
+		// Auth check
+		const supabaseAuth = await createClient();
+		const {
+			data: { user },
+		} = await supabaseAuth.auth.getUser();
+		if (!user) {
+			return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+		}
+
 		const { colocationId, type, eventId, title, body, excludeMemberId } =
 			await request.json();
 
-		if (!colocationId || !title || !body) {
+		if (
+			typeof colocationId !== "string" ||
+			typeof title !== "string" ||
+			typeof body !== "string" ||
+			!colocationId ||
+			!title ||
+			!body
+		) {
 			return NextResponse.json(
-				{ error: "Paramètres manquants" },
+				{ error: "Paramètres manquants ou invalides" },
 				{ status: 400 },
 			);
+		}
+
+		if (title.length > 256 || body.length > 1024) {
+			return NextResponse.json(
+				{ error: "Titre ou contenu trop long" },
+				{ status: 400 },
+			);
+		}
+
+		// Vérifier que l'utilisateur appartient à la colocation
+		const { data: callerMember } = await supabaseAuth
+			.from("members")
+			.select("id, colocation_id")
+			.eq("user_id", user.id)
+			.eq("colocation_id", colocationId)
+			.single();
+
+		if (!callerMember) {
+			return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 		}
 
 		const supabase = createAdminClient();
@@ -47,7 +83,9 @@ export async function POST(request: Request) {
 			return NextResponse.json({ success: true, sent: 0 });
 		}
 
-		const url = eventId ? `/events/${eventId}` : "/dashboard";
+		const sanitizedEventId =
+			typeof eventId === "string" ? eventId.replace(/[^a-zA-Z0-9-]/g, "") : "";
+		const url = sanitizedEventId ? `/events/${sanitizedEventId}` : "/dashboard";
 
 		const result = await sendPushToMany(
 			subscriptions.map((s) => ({

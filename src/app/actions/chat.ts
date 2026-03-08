@@ -275,7 +275,7 @@ export async function fetchChatMessages(
  * Récupère un seul message par ID (bypass RLS).
  */
 export async function fetchSingleMessage(messageId: string) {
-	const member = await getAuthenticatedMember();
+	await getAuthenticatedMember();
 	const admin = createAdminClient();
 
 	const { data } = await admin

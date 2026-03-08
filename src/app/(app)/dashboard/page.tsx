@@ -6,7 +6,6 @@ import {
 	startOfMonth,
 } from "date-fns";
 import {
-	Bell,
 	BookOpen,
 	CalendarDays,
 	Megaphone,
@@ -160,7 +159,6 @@ export default async function DashboardPage() {
 				memberId={member.id}
 				colocationId={colocationId}
 				currentStatus={member.presence_status}
-				returnDate={member.presence_return_date}
 			/>
 
 			{/* Annonces (style post-it) */}

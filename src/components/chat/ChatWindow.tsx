@@ -321,7 +321,7 @@ export function ChatWindow({
 							top: vvRect?.offsetTop ?? 0,
 							height: vvRect ? `${vvRect.height}px` : "100dvh",
 						}
-					: { height: "calc(100dvh - 80px)" }
+					: { height: "calc(100dvh - 5rem - env(safe-area-inset-bottom, 0px))" }
 			}
 		>
 			{/* En-tête */}

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
@@ -8,10 +9,16 @@ function createAdminClient() {
 	);
 }
 
+function isValidCronSecret(authHeader: string | null): boolean {
+	const expected = `Bearer ${process.env.CRON_SECRET}`;
+	if (!authHeader || authHeader.length !== expected.length) return false;
+	return timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+}
+
 // Cron : supprime les annonces expirées (non épinglées)
 export async function GET(request: Request) {
 	const authHeader = request.headers.get("authorization");
-	if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+	if (!isValidCronSecret(authHeader)) {
 		return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 	}
 

@@ -17,14 +17,12 @@ interface PresenceToggleProps {
 	memberId: string;
 	colocationId: string;
 	currentStatus: PresenceStatus;
-	returnDate?: string | null;
 }
 
 export function PresenceToggle({
 	memberId,
 	colocationId,
 	currentStatus,
-	returnDate,
 }: PresenceToggleProps) {
 	const [status, setStatus] = useState<PresenceStatus>(currentStatus);
 	const supabase = createClient();

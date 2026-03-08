@@ -17,12 +17,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn, formatDate, formatTime } from "@/lib/utils";
+import { cn, formatTime } from "@/lib/utils";
 import type { Event } from "@/types";
 
 interface CalendarViewProps {
 	events: Event[];
-	memberId: string;
 }
 
 const NOISE_COLORS = {
@@ -31,7 +30,7 @@ const NOISE_COLORS = {
 	festive: "bg-purple-200 text-purple-800",
 };
 
-export function CalendarView({ events, memberId }: CalendarViewProps) {
+export function CalendarView({ events }: CalendarViewProps) {
 	const [currentMonth, setCurrentMonth] = useState(new Date());
 	const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
