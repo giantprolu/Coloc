@@ -35,6 +35,10 @@ export function ChatWindow({
 	);
 	const [isFocused, setIsFocused] = useState(false);
 	const [testMode, setTestMode] = useState(false);
+	const [vvRect, setVvRect] = useState<{
+		height: number;
+		offsetTop: number;
+	} | null>(null);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -113,22 +117,33 @@ export function ChatWindow({
 		}, 150);
 	}, []);
 
-	// Visual Viewport API pour gérer le clavier mobile
+	// Visual Viewport API — track keyboard open/close
 	useEffect(() => {
-		const viewport = window.visualViewport;
-		if (!viewport || !containerRef.current) return;
+		const vv = window.visualViewport;
+		if (!vv) return;
 
-		const handleResize = () => {
-			const container = containerRef.current;
-			if (!container) return;
-			const height = viewport.height - container.getBoundingClientRect().top;
-			container.style.height = `${height}px`;
-			messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+		const update = () => {
+			setVvRect({ height: vv.height, offsetTop: vv.offsetTop });
 		};
 
-		viewport.addEventListener("resize", handleResize);
-		return () => viewport.removeEventListener("resize", handleResize);
+		update(); // initialize
+		vv.addEventListener("resize", update);
+		vv.addEventListener("scroll", update);
+		return () => {
+			vv.removeEventListener("resize", update);
+			vv.removeEventListener("scroll", update);
+		};
 	}, []);
+
+	// Scroll to bottom when keyboard resizes
+	const vvHeight = vvRect?.height;
+	useEffect(() => {
+		if (isFocused) {
+			requestAnimationFrame(() => {
+				messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+			});
+		}
+	}, [isFocused, vvHeight]);
 
 	// Detect @ mention pattern in input
 	const detectMention = useCallback((value: string, cursorPos: number) => {
@@ -299,8 +314,15 @@ export function ChatWindow({
 	return (
 		<div
 			ref={containerRef}
-			className="flex flex-col"
-			style={{ height: isFocused ? undefined : "calc(100dvh - 80px)" }}
+			className={`flex flex-col ${isFocused ? "fixed inset-x-0 z-50 mx-auto max-w-md bg-gray-50" : ""}`}
+			style={
+				isFocused
+					? {
+							top: vvRect?.offsetTop ?? 0,
+							height: vvRect ? `${vvRect.height}px` : "100dvh",
+						}
+					: { height: "calc(100dvh - 80px)" }
+			}
 		>
 			{/* En-tête */}
 			<div className="sticky top-0 z-10 border-b bg-white/95 backdrop-blur-sm px-4 py-3">

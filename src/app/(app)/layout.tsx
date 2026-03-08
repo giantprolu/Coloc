@@ -40,7 +40,7 @@ export default async function AppLayout({
 	const unreadCount = await getUnreadChatCount(member.id, member.colocation_id);
 
 	return (
-		<div className="min-h-screen bg-gray-50">
+		<div className="min-h-[100dvh] bg-gray-50">
 			{/* Lien d'évitement — RGAA critère 12.7 */}
 			<a
 				href="#main-content"

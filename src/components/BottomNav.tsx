@@ -37,7 +37,7 @@ export function BottomNav({ hasUnreadChat }: BottomNavProps) {
 	return (
 		<nav
 			aria-label="Navigation principale"
-			className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white/95 backdrop-blur-sm"
+			className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white backdrop-blur-sm pb-[env(safe-area-inset-bottom)]"
 		>
 			<div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
 				{navItems.map((item) => {
