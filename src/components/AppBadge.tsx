@@ -1,34 +1,30 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
-interface AppBadgeProps {
-	unreadCount: number;
-}
-
 /**
- * Sets the PWA app badge (home screen icon) based on unread count.
- * Uses the Badging API (navigator.setAppBadge / clearAppBadge).
+ * Clears the PWA app badge when the user opens or foregrounds the app.
+ * The badge is SET by the service worker on every push notification received
+ * (for all notification types: chat, events, emergency, etc.).
  */
-export function AppBadge({ unreadCount }: AppBadgeProps) {
-	const pathname = usePathname();
-
+export function AppBadge() {
 	useEffect(() => {
 		if (!("setAppBadge" in navigator)) return;
 
-		// Clear badge when user is on the chat page
-		if (pathname.startsWith("/chat")) {
-			navigator.clearAppBadge?.().catch(() => {});
-			return;
-		}
+		// Clear badge immediately when component mounts (app just opened)
+		navigator.clearAppBadge?.().catch(() => {});
 
-		if (unreadCount > 0) {
-			navigator.setAppBadge?.(unreadCount).catch(() => {});
-		} else {
-			navigator.clearAppBadge?.().catch(() => {});
-		}
-	}, [unreadCount, pathname]);
+		// Clear badge when app comes back to foreground
+		const handleVisibility = () => {
+			if (document.visibilityState === "visible") {
+				navigator.clearAppBadge?.().catch(() => {});
+			}
+		};
+
+		document.addEventListener("visibilitychange", handleVisibility);
+		return () =>
+			document.removeEventListener("visibilitychange", handleVisibility);
+	}, []);
 
 	return null;
 }

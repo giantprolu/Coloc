@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
+const CHAT_TAGS = new Set(["chat_message", "chat_mention"]);
+
 const navItems = [
 	{ href: "/dashboard", label: "Accueil", icon: Home },
 	{ href: "/calendar", label: "Calendrier", icon: Calendar },
@@ -20,6 +22,8 @@ interface BottomNavProps {
 export function BottomNav({ hasUnreadChat }: BottomNavProps) {
 	const pathname = usePathname();
 	const [hidden, setHidden] = useState(false);
+	const [hasNewChatPush, setHasNewChatPush] = useState(false);
+	const [hasNewOtherPush, setHasNewOtherPush] = useState(false);
 
 	useEffect(() => {
 		const hide = () => setHidden(true);
@@ -30,6 +34,22 @@ export function BottomNav({ hasUnreadChat }: BottomNavProps) {
 			window.removeEventListener("chat-input-focus", hide);
 			window.removeEventListener("chat-input-blur", show);
 		};
+	}, []);
+
+	// Listen for push notifications from service worker
+	useEffect(() => {
+		const handler = (event: MessageEvent) => {
+			if (event.data?.type === "push-received") {
+				if (CHAT_TAGS.has(event.data.tag)) {
+					setHasNewChatPush(true);
+				} else {
+					setHasNewOtherPush(true);
+				}
+			}
+		};
+		navigator.serviceWorker?.addEventListener("message", handler);
+		return () =>
+			navigator.serviceWorker?.removeEventListener("message", handler);
 	}, []);
 
 	if (hidden) return null;
@@ -43,12 +63,27 @@ export function BottomNav({ hasUnreadChat }: BottomNavProps) {
 				{navItems.map((item) => {
 					const Icon = item.icon;
 					const isActive = pathname.startsWith(item.href);
-					const showBadge = item.href === "/chat" && hasUnreadChat && !isActive;
+
+					// Show dot on Chat for chat notifications
+					const showChatBadge =
+						item.href === "/chat" &&
+						(hasUnreadChat || hasNewChatPush) &&
+						!isActive;
+
+					// Show dot on Accueil for other notifications (events, emergency, etc.)
+					const showOtherBadge =
+						item.href === "/dashboard" && hasNewOtherPush && !isActive;
+
+					const showBadge = showChatBadge || showOtherBadge;
 
 					return (
 						<Link
 							key={item.href}
 							href={item.href}
+							onClick={() => {
+								if (item.href === "/chat") setHasNewChatPush(false);
+								if (item.href === "/dashboard") setHasNewOtherPush(false);
+							}}
 							aria-current={isActive ? "page" : undefined}
 							className={cn(
 								"relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
@@ -65,7 +100,7 @@ export function BottomNav({ hasUnreadChat }: BottomNavProps) {
 								{showBadge && (
 									<span
 										className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500"
-										aria-label="Messages non lus"
+										aria-label="Notifications non lues"
 									/>
 								)}
 							</span>

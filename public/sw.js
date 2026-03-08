@@ -70,13 +70,37 @@ self.addEventListener("push", (event) => {
 	};
 
 	event.waitUntil(
-		self.registration.showNotification(data.title || "ColocEvents", options),
+		Promise.all([
+			self.registration.showNotification(data.title || "ColocEvents", options),
+			// Set app badge + notify open clients
+			self.clients
+				.matchAll({ type: "window", includeUncontrolled: true })
+				.then(async (clients) => {
+					// Set PWA app badge only when app is not in foreground
+					const hasFocusedClient = clients.some((c) => c.focused);
+					if (!hasFocusedClient && navigator.setAppBadge) {
+						await navigator.setAppBadge(1).catch(() => {});
+					}
+					// Notify all open clients (for in-app badge dot)
+					for (const client of clients) {
+						client.postMessage({
+							type: "push-received",
+							tag: data.tag || "default",
+						});
+					}
+				}),
+		]),
 	);
 });
 
 // Notification click handler
 self.addEventListener("notificationclick", (event) => {
 	event.notification.close();
+
+	// Clear app badge when user taps a notification
+	if (navigator.clearAppBadge) {
+		navigator.clearAppBadge().catch(() => {});
+	}
 
 	const url = event.notification.data?.url || "/dashboard";
 

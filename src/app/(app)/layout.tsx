@@ -57,7 +57,7 @@ export default async function AppLayout({
 				{children}
 			</main>
 			<BottomNav hasUnreadChat={unreadCount > 0} />
-			<AppBadge unreadCount={unreadCount} />
+			<AppBadge />
 			<NotificationPrompt />
 			<PwaInstallPrompt />
 			<Toaster position="top-center" richColors />
