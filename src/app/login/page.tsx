@@ -2,7 +2,7 @@
 
 import { Home } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +17,10 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+	const searchParams = useSearchParams();
+	const next = searchParams.get("next") || "";
+	const isPompier = next.startsWith("/pompier");
+
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
@@ -44,19 +48,45 @@ export default function LoginPage() {
 			return;
 		}
 
-		router.push("/dashboard");
+		// Redirige vers la destination appropriée
+		router.push(isPompier ? "/pompier" : "/dashboard");
 	};
 
+	const signupHref = isPompier
+		? `/signup?next=${encodeURIComponent(next)}`
+		: "/signup";
+	const forgotHref = isPompier
+		? `/forgot-password?next=${encodeURIComponent(next)}`
+		: "/forgot-password";
+
 	return (
-		<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 p-4">
+		<div
+			className={`min-h-screen flex items-center justify-center p-4 ${
+				isPompier
+					? "bg-gradient-to-br from-red-50 to-orange-50"
+					: "bg-gradient-to-br from-indigo-50 to-purple-50"
+			}`}
+		>
 			<Card className="w-full max-w-md">
 				<CardHeader className="text-center">
-					<div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600">
-						<Home className="h-6 w-6 text-white" />
+					<div
+						className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full ${
+							isPompier ? "bg-red-600" : "bg-indigo-600"
+						}`}
+					>
+						{isPompier ? (
+							<span className="text-2xl">🚒</span>
+						) : (
+							<Home className="h-6 w-6 text-white" />
+						)}
 					</div>
-					<CardTitle className="text-2xl font-bold">ColocEvents</CardTitle>
+					<CardTitle className="text-2xl font-bold">
+						{isPompier ? "App Pompier" : "ColocEvents"}
+					</CardTitle>
 					<CardDescription>
-						Gérez facilement votre vie en colocation
+						{isPompier
+							? "Connecte-toi pour accéder au bouton pompier"
+							: "Gérez facilement votre vie en colocation"}
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
@@ -76,8 +106,12 @@ export default function LoginPage() {
 							<div className="flex items-center justify-between">
 								<Label htmlFor="password">Mot de passe</Label>
 								<Link
-									href="/forgot-password"
-									className="text-xs text-indigo-600 hover:text-indigo-500"
+									href={forgotHref}
+									className={`text-xs ${
+										isPompier
+											? "text-red-600 hover:text-red-500"
+											: "text-indigo-600 hover:text-indigo-500"
+									}`}
 								>
 									Mot de passe oublié ?
 								</Link>
@@ -99,7 +133,11 @@ export default function LoginPage() {
 						)}
 						<Button
 							type="submit"
-							className="w-full bg-indigo-600 hover:bg-indigo-700"
+							className={`w-full ${
+								isPompier
+									? "bg-red-600 hover:bg-red-700"
+									: "bg-indigo-600 hover:bg-indigo-700"
+							}`}
 							disabled={isLoading}
 						>
 							{isLoading ? "Connexion..." : "Se connecter"}
@@ -108,8 +146,12 @@ export default function LoginPage() {
 					<p className="text-center text-sm text-gray-500">
 						Pas encore de compte ?{" "}
 						<Link
-							href="/signup"
-							className="font-medium text-indigo-600 hover:text-indigo-500"
+							href={signupHref}
+							className={`font-medium ${
+								isPompier
+									? "text-red-600 hover:text-red-500"
+									: "text-indigo-600 hover:text-indigo-500"
+							}`}
 						>
 							Créer un compte
 						</Link>

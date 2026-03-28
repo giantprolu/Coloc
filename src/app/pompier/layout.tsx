@@ -15,6 +15,11 @@ export const metadata: Metadata = {
 		statusBarStyle: "default",
 		title: "App Pompier",
 	},
+	manifest: "/pompier/manifest.webmanifest",
+	icons: {
+		icon: "/icons/icon-192.png",
+		apple: "/icons/icon-192.png",
+	},
 };
 
 export const viewport: Viewport = {
@@ -75,9 +80,6 @@ export default async function PompierLayout({
 			<ServiceWorkerRegister swPath="/pompier-sw.js" scope="/pompier/" />
 			<NotificationPrompt />
 			<Toaster position="top-center" richColors />
-
-			{/* Manifest link pour l'app pompier */}
-			<link rel="manifest" href="/pompier/manifest.webmanifest" />
 		</div>
 	);
 }

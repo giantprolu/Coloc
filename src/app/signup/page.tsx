@@ -2,6 +2,7 @@
 
 import { Home } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +17,10 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
+	const searchParams = useSearchParams();
+	const next = searchParams.get("next") || "";
+	const isPompier = next.startsWith("/pompier");
+
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
@@ -35,11 +40,16 @@ export default function SignupPage() {
 
 		setIsLoading(true);
 
+		// Passe le paramètre next dans le callback pour préserver la destination
+		const callbackUrl = next
+			? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+			: `${window.location.origin}/auth/callback`;
+
 		const { error } = await supabase.auth.signUp({
 			email,
 			password,
 			options: {
-				emailRedirectTo: `${window.location.origin}/auth/callback`,
+				emailRedirectTo: callbackUrl,
 			},
 		});
 
@@ -57,25 +67,49 @@ export default function SignupPage() {
 		setIsLoading(false);
 	};
 
+	const loginHref = isPompier ? `/login?next=${encodeURIComponent(next)}` : "/login";
+
 	return (
-		<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 p-4">
+		<div
+			className={`min-h-screen flex items-center justify-center p-4 ${
+				isPompier
+					? "bg-gradient-to-br from-red-50 to-orange-50"
+					: "bg-gradient-to-br from-indigo-50 to-purple-50"
+			}`}
+		>
 			<Card className="w-full max-w-md">
 				<CardHeader className="text-center">
-					<div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600">
-						<Home className="h-6 w-6 text-white" />
+					<div
+						className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full ${
+							isPompier ? "bg-red-600" : "bg-indigo-600"
+						}`}
+					>
+						{isPompier ? (
+							<span className="text-2xl">🚒</span>
+						) : (
+							<Home className="h-6 w-6 text-white" />
+						)}
 					</div>
-					<CardTitle className="text-2xl font-bold">ColocEvents</CardTitle>
-					<CardDescription>Créer un compte</CardDescription>
+					<CardTitle className="text-2xl font-bold">
+						{isPompier ? "App Pompier" : "ColocEvents"}
+					</CardTitle>
+					<CardDescription>
+						{isPompier
+							? "Créer un compte pour accéder au bouton pompier"
+							: "Créer un compte"}
+					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
 					{isConfirmation ? (
 						<div className="text-center space-y-3">
-							<p className="font-medium text-gray-900">Vérifiez vos emails !</p>
+							<p className="font-medium text-gray-900">
+								Vérifiez vos emails !
+							</p>
 							<p className="text-sm text-gray-500">
 								Un lien de confirmation a été envoyé à{" "}
 								<span className="font-medium">{email}</span>
 							</p>
-							<Link href="/login">
+							<Link href={loginHref}>
 								<Button variant="ghost" className="text-sm">
 									Retour à la connexion
 								</Button>
@@ -116,7 +150,9 @@ export default function SignupPage() {
 										type="password"
 										placeholder="••••••••"
 										value={confirmPassword}
-										onChange={(e) => setConfirmPassword(e.target.value)}
+										onChange={(e) =>
+											setConfirmPassword(e.target.value)
+										}
 										required
 										minLength={6}
 									/>
@@ -128,7 +164,11 @@ export default function SignupPage() {
 								)}
 								<Button
 									type="submit"
-									className="w-full bg-indigo-600 hover:bg-indigo-700"
+									className={`w-full ${
+										isPompier
+											? "bg-red-600 hover:bg-red-700"
+											: "bg-indigo-600 hover:bg-indigo-700"
+									}`}
 									disabled={isLoading}
 								>
 									{isLoading ? "Inscription..." : "Créer un compte"}
@@ -137,8 +177,12 @@ export default function SignupPage() {
 							<p className="text-center text-sm text-gray-500">
 								Déjà un compte ?{" "}
 								<Link
-									href="/login"
-									className="font-medium text-indigo-600 hover:text-indigo-500"
+									href={loginHref}
+									className={`font-medium ${
+										isPompier
+											? "text-red-600 hover:text-red-500"
+											: "text-indigo-600 hover:text-indigo-500"
+									}`}
 								>
 									Se connecter
 								</Link>

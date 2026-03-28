@@ -57,6 +57,10 @@ export async function middleware(request: NextRequest) {
 	if (!user && !isPublicRoute) {
 		const url = request.nextUrl.clone();
 		url.pathname = "/login";
+		// Préserve la destination pour les routes pompier
+		if (pathname.startsWith("/pompier")) {
+			url.searchParams.set("next", "/pompier");
+		}
 		return NextResponse.redirect(url);
 	}
 
