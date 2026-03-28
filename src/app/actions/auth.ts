@@ -47,7 +47,7 @@ export async function signUpPompier(
 		}
 
 		const { error: emailError } = await resend.emails.send({
-			from: "App Pompier <noreply@trouve-tout-conseil.fr>",
+			from: "App Pompier <noreply@app.trouve-tout-conseil.fr>",
 			to: email,
 			subject: "🚒 Confirme ton inscription - Qui ken le plus ?",
 			html: buildPompierEmail(confirmUrl),
