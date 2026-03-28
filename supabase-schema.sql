@@ -19,7 +19,7 @@ create table if not exists members (
   display_name text not null,
   avatar_url text,
   room text,
-  role text default 'member' check (role in ('admin', 'member')),
+  role text default 'member' check (role in ('admin', 'member', 'pompier')),
   presence_status text default 'home' check (presence_status in ('home', 'away_tonight', 'traveling')),
   presence_return_date date,
   created_at timestamptz default now(),

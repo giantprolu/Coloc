@@ -23,6 +23,12 @@ const nextConfig: NextConfig = {
 					},
 				],
 			},
+			{
+				source: "/pompier-sw.js",
+				headers: [
+					{ key: "Service-Worker-Allowed", value: "/pompier" },
+				],
+			},
 		];
 	},
 };

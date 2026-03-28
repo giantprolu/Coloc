@@ -93,8 +93,8 @@ export async function toggleEmergencyPermission(memberId: string) {
 }
 
 /**
- * Envoie une notification 🚒 aux membres qui ont le bouton activé.
- * Bypass les préférences de notification.
+ * @deprecated Utiliser recordFiretruckClick de @/app/actions/firetruck à la place.
+ * Conservé pour le DevTools test notification.
  */
 export async function sendEmergencyNotification(colocationId: string) {
 	const member = await getAuthenticatedMember();
@@ -103,7 +103,6 @@ export async function sendEmergencyNotification(colocationId: string) {
 		throw new Error("Colocation introuvable");
 	}
 
-	// Vérifier que le membre a la permission
 	const admin = createAdminClient();
 	const { data: permission } = await admin
 		.from("emergency_button_permissions")
@@ -116,14 +115,12 @@ export async function sendEmergencyNotification(colocationId: string) {
 		throw new Error("Vous n'avez pas la permission d'utiliser ce bouton");
 	}
 
-	// Récupérer le nom de l'expéditeur
 	const { data: memberInfo } = await admin
 		.from("members")
 		.select("display_name")
 		.eq("id", member.id)
 		.single();
 
-	// Récupérer uniquement les membres qui ont le bouton activé
 	const { data: permittedMembers } = await admin
 		.from("emergency_button_permissions")
 		.select("member_id")

@@ -18,6 +18,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getEmergencyPermissions } from "@/app/actions/emergency";
 import { FireTruckButton } from "@/components/FireTruckButton";
+import { FiretruckStats } from "@/components/firetruck/FiretruckStats";
 import { PresenceToggle } from "@/components/PresenceToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -223,6 +224,9 @@ export default async function DashboardPage() {
 					</div>
 				</Link>
 			</div>
+
+			{/* Stats Pompier */}
+			{hasFireTruck && <FiretruckStats colocationId={colocationId} />}
 
 			{/* Ce soir */}
 			{upcomingEvents && upcomingEvents.length > 0 && (

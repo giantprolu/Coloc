@@ -25,9 +25,21 @@ export const NOTIF_CHAT_MENTION = {
 
 export const NOTIF_FIRETRUCK = {
 	title: "🚒🚒🚒",
-	body: (senderName: string) => `${senderName} à ken a l'instant !`,
+	body: (senderName: string, rating?: number) =>
+		rating
+			? `${senderName} a ken a l'instant ! ${"⭐".repeat(rating)}`
+			: `${senderName} a ken a l'instant !`,
 	url: "/dashboard",
 	tag: "firetruck",
+};
+
+// ─── Rappel weekend ─────────────────────────────────────────────────────────
+
+export const NOTIF_WEEKEND_REMINDER = {
+	title: "📅 Weekend à venir !",
+	body: "N'oubliez pas de remplir vos disponibilités pour les weekends du mois.",
+	url: "/dashboard",
+	tag: "weekend_reminder",
 };
 
 // ─── Test (dev) ──────────────────────────────────────────────────────────────

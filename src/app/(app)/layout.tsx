@@ -29,12 +29,17 @@ export default async function AppLayout({
 	// Vérifie que l'utilisateur a un profil membre
 	const { data: member } = await supabase
 		.from("members")
-		.select("id, colocation_id")
+		.select("id, colocation_id, role")
 		.eq("user_id", user.id)
 		.single();
 
 	if (!member) {
 		redirect("/onboarding");
+	}
+
+	// Les pompiers ne peuvent pas accéder à l'app principale
+	if (member.role === "pompier") {
+		redirect("/pompier");
 	}
 
 	const unreadCount = await getUnreadChatCount(member.id, member.colocation_id);

@@ -141,3 +141,71 @@ export async function joinColocation(
 		};
 	}
 }
+
+export async function joinColocationAsPompier(
+	inviteCode: string,
+	displayName: string,
+): Promise<{ error?: string }> {
+	try {
+		const userId = await getAuthenticatedUserId();
+		const admin = createAdminClient();
+
+		// Cherche la coloc par code
+		const { data: coloc, error: colocError } = await admin
+			.from("colocations")
+			.select("id")
+			.eq("invite_code", inviteCode.toUpperCase().trim())
+			.single();
+
+		if (colocError || !coloc) {
+			throw new Error(
+				"Code d'invitation invalide. Vérifiez le code et réessayez.",
+			);
+		}
+
+		// Vérifie si déjà membre
+		const { data: existingMember } = await admin
+			.from("members")
+			.select("id")
+			.eq("user_id", userId)
+			.eq("colocation_id", coloc.id)
+			.maybeSingle();
+
+		if (existingMember) {
+			throw new Error("Vous êtes déjà membre de cette colocation.");
+		}
+
+		// Crée le membre avec rôle pompier
+		const { data: newMember, error: memberError } = await admin
+			.from("members")
+			.insert({
+				user_id: userId,
+				colocation_id: coloc.id,
+				display_name: displayName,
+				room: null,
+				role: "pompier",
+			})
+			.select("id")
+			.single();
+
+		if (memberError) throw memberError;
+
+		// Auto-accorder la permission du bouton pompier
+		await admin.from("emergency_button_permissions").insert({
+			colocation_id: coloc.id,
+			member_id: newMember.id,
+			granted_by: newMember.id,
+		});
+
+		// Préférences de notification
+		await admin
+			.from("notification_preferences")
+			.insert({ member_id: newMember.id });
+
+		return {};
+	} catch (err) {
+		return {
+			error: err instanceof Error ? err.message : "Une erreur est survenue.",
+		};
+	}
+}

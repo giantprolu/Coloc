@@ -34,12 +34,21 @@ export async function GET(request: Request) {
 		if (user) {
 			const { data: member } = await supabase
 				.from("members")
-				.select("id")
+				.select("id, role")
 				.eq("user_id", user.id)
 				.single();
 
 			if (!member) {
-				return NextResponse.redirect(`${origin}/onboarding`);
+				// Redirige vers l'onboarding pompier si l'utilisateur vient de /pompier
+				const redirectTo = next.startsWith("/pompier")
+					? "/pompier/onboarding"
+					: "/onboarding";
+				return NextResponse.redirect(`${origin}${redirectTo}`);
+			}
+
+			// Si l'utilisateur est pompier, toujours rediriger vers /pompier
+			if (member.role === "pompier") {
+				return NextResponse.redirect(`${origin}/pompier`);
 			}
 		}
 

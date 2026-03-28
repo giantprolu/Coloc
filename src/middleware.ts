@@ -68,8 +68,11 @@ export async function middleware(request: NextRequest) {
 		!pathname.startsWith("/auth") &&
 		!pathname.startsWith("/reset-password")
 	) {
+		// Préserver le paramètre next pour les redirections pompier
+		const next = request.nextUrl.searchParams.get("next");
 		const url = request.nextUrl.clone();
-		url.pathname = "/dashboard";
+		url.pathname = next?.startsWith("/pompier") ? "/pompier" : "/dashboard";
+		url.search = "";
 		return NextResponse.redirect(url);
 	}
 
@@ -85,6 +88,6 @@ export const config = {
 		 * - _next/image (image optimization files)
 		 * - favicon.ico, sw.js, manifest, icons, images
 		 */
-		"/((?!api|_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|sw\\.js|icons).*)",
+		"/((?!api|_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|sw\\.js|pompier-sw\\.js|icons).*)",
 	],
 };
