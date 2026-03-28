@@ -32,22 +32,30 @@ export async function GET(request: Request) {
 		} = await supabase.auth.getUser();
 
 		if (user) {
+			// Vérifier si membre coloc
 			const { data: member } = await supabase
 				.from("members")
-				.select("id, role")
+				.select("id")
 				.eq("user_id", user.id)
 				.single();
 
-			if (!member) {
-				// Redirige vers l'onboarding pompier si l'utilisateur vient de /pompier
+			// Vérifier si pompier
+			const { data: pompier } = await supabase
+				.from("pompier_users")
+				.select("id")
+				.eq("user_id", user.id)
+				.single();
+
+			if (!member && !pompier) {
+				// Aucun profil → onboarding
 				const redirectTo = next.startsWith("/pompier")
 					? "/pompier/onboarding"
 					: "/onboarding";
 				return NextResponse.redirect(`${origin}${redirectTo}`);
 			}
 
-			// Si l'utilisateur est pompier, toujours rediriger vers /pompier
-			if (member.role === "pompier") {
+			// Si pompier sans profil membre, toujours rediriger vers /pompier
+			if (pompier && !member) {
 				return NextResponse.redirect(`${origin}/pompier`);
 			}
 		}

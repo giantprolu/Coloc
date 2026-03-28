@@ -14,43 +14,80 @@ function createAdminClient() {
 }
 
 /**
- * Inscription pompier : crée le user via admin (sans email Supabase)
- * puis envoie un email custom via Resend avec le branding 🚒.
+ * Inscription pompier : crée le user via admin (auto-confirmé),
+ * puis génère un magic link et envoie un email custom via Resend.
+ * L'utilisateur clique → connecté automatiquement → redirigé vers /pompier.
  */
 export async function signUpPompier(
 	email: string,
 	password: string,
 	origin: string,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; redirect?: string }> {
 	try {
 		const admin = createAdminClient();
 
-		const { data, error } = await admin.auth.admin.generateLink({
-			type: "signup",
-			email,
-			password,
-			options: {
-				redirectTo: `${origin}/auth/callback?next=%2Fpompier`,
-			},
-		});
+		// 1. Créer l'utilisateur (auto-confirmé)
+		const { data: newUser, error: createError } =
+			await admin.auth.admin.createUser({
+				email,
+				password,
+				email_confirm: true,
+			});
 
-		if (error) {
-			if (error.message?.includes("already been registered")) {
-				return { error: "Un compte existe déjà avec cet email." };
+		if (createError) {
+			if (
+				createError.message?.includes("already been registered") ||
+				createError.message?.includes("already exists")
+			) {
+				return {
+					error:
+						"Un compte existe déjà avec cet email. Connecte-toi plutôt !",
+					redirect: "/login?next=/pompier",
+				};
 			}
 			return { error: "Erreur lors de l'inscription." };
 		}
 
-		const confirmUrl = data.properties?.action_link;
-		if (!confirmUrl) {
-			return { error: "Erreur lors de la génération du lien." };
+		if (!newUser?.user) {
+			return { error: "Erreur lors de la création du compte." };
 		}
 
+		// 2. Générer un magic link pour connexion en un clic
+		const { data: linkData, error: linkError } =
+			await admin.auth.admin.generateLink({
+				type: "magiclink",
+				email,
+				options: {
+					redirectTo: `${origin}/auth/callback?next=%2Fpompier`,
+				},
+			});
+
+		if (linkError || !linkData?.properties?.action_link) {
+			// Fallback : envoyer vers la page de login
+			const { error: emailError } = await resend.emails.send({
+				from: "App Pompier <noreply@app.trouve-tout-conseil.fr>",
+				to: email,
+				subject: "🚒 Bienvenue - Qui ken le plus ?",
+				html: buildPompierEmail(`${origin}/login?next=/pompier`),
+			});
+			if (emailError) console.error("Resend error:", emailError);
+			return {};
+		}
+
+		// Forcer le redirect_to dans le magic link
+		const linkUrl = new URL(linkData.properties.action_link);
+		linkUrl.searchParams.set(
+			"redirect_to",
+			`${origin}/auth/callback?next=%2Fpompier`,
+		);
+		const magicUrl = linkUrl.toString();
+
+		// 3. Envoyer l'email via Resend
 		const { error: emailError } = await resend.emails.send({
 			from: "App Pompier <noreply@app.trouve-tout-conseil.fr>",
 			to: email,
-			subject: "🚒 Confirme ton inscription - Qui ken le plus ?",
-			html: buildPompierEmail(confirmUrl),
+			subject: "🚒 Bienvenue - Qui ken le plus ?",
+			html: buildPompierEmail(magicUrl),
 		});
 
 		if (emailError) {

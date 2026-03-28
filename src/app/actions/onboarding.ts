@@ -163,44 +163,28 @@ export async function joinColocationAsPompier(
 			);
 		}
 
-		// Vérifie si déjà membre
-		const { data: existingMember } = await admin
-			.from("members")
+		// Vérifie si déjà pompier
+		const { data: existing } = await admin
+			.from("pompier_users")
 			.select("id")
 			.eq("user_id", userId)
 			.eq("colocation_id", coloc.id)
 			.maybeSingle();
 
-		if (existingMember) {
-			throw new Error("Vous êtes déjà membre de cette colocation.");
+		if (existing) {
+			throw new Error("Tu es déjà inscrit sur cette colocation.");
 		}
 
-		// Crée le membre avec rôle pompier
-		const { data: newMember, error: memberError } = await admin
-			.from("members")
+		// Crée le profil pompier (table séparée de members)
+		const { error: insertError } = await admin
+			.from("pompier_users")
 			.insert({
 				user_id: userId,
 				colocation_id: coloc.id,
 				display_name: displayName,
-				room: null,
-				role: "pompier",
-			})
-			.select("id")
-			.single();
+			});
 
-		if (memberError) throw memberError;
-
-		// Auto-accorder la permission du bouton pompier
-		await admin.from("emergency_button_permissions").insert({
-			colocation_id: coloc.id,
-			member_id: newMember.id,
-			granted_by: newMember.id,
-		});
-
-		// Préférences de notification
-		await admin
-			.from("notification_preferences")
-			.insert({ member_id: newMember.id });
+		if (insertError) throw insertError;
 
 		return {};
 	} catch (err) {

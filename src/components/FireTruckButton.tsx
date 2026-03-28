@@ -7,9 +7,15 @@ import { FiretruckRatingModal } from "@/components/firetruck/FiretruckRatingModa
 
 interface FireTruckButtonProps {
 	colocationId: string;
+	isPompier?: boolean;
+	pompierUserId?: string;
 }
 
-export function FireTruckButton({ colocationId }: FireTruckButtonProps) {
+export function FireTruckButton({
+	colocationId,
+	isPompier = false,
+	pompierUserId,
+}: FireTruckButtonProps) {
 	const [loading, setLoading] = useState(false);
 	const [modalOpen, setModalOpen] = useState(false);
 
@@ -17,7 +23,7 @@ export function FireTruckButton({ colocationId }: FireTruckButtonProps) {
 		if (loading) return;
 		setLoading(true);
 		try {
-			await recordFiretruckClick(colocationId, rating);
+			await recordFiretruckClick(colocationId, rating, isPompier ? pompierUserId : undefined);
 			toast.success("🚒 Notification envoyée !");
 			setModalOpen(false);
 		} catch (err) {

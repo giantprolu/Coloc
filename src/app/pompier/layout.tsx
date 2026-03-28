@@ -46,20 +46,28 @@ export default async function PompierLayout({
 		redirect("/login?next=/pompier");
 	}
 
-	// Vérifie que l'utilisateur a un profil membre
-	const { data: member } = await supabase
-		.from("members")
-		.select("id, role, colocation_id")
+	// Vérifie que l'utilisateur a un profil pompier
+	const { data: pompierUser } = await supabase
+		.from("pompier_users")
+		.select("id, colocation_id")
 		.eq("user_id", user.id)
 		.single();
 
-	if (!member) {
-		redirect("/pompier/onboarding");
-	}
+	if (!pompierUser) {
+		// Peut-être un membre coloc → vérifier
+		const { data: member } = await supabase
+			.from("members")
+			.select("id")
+			.eq("user_id", user.id)
+			.single();
 
-	// Si c'est un membre coloc (pas pompier), rediriger vers le dashboard
-	if (member.role !== "pompier") {
-		redirect("/dashboard");
+		if (member) {
+			// C'est un membre coloc, pas un pompier externe
+			redirect("/dashboard");
+		}
+
+		// Ni pompier ni membre → onboarding pompier
+		redirect("/pompier/onboarding");
 	}
 
 	return (

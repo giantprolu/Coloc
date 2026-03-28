@@ -12,15 +12,15 @@ export default async function PompierPage() {
 
 	if (!user) redirect("/login?next=/pompier");
 
-	const { data: member } = await supabase
-		.from("members")
+	const { data: pompierUser } = await supabase
+		.from("pompier_users")
 		.select("*, colocation:colocations(name)")
 		.eq("user_id", user.id)
 		.single();
 
-	if (!member) redirect("/pompier/onboarding");
+	if (!pompierUser) redirect("/pompier/onboarding");
 
-	const coloc = member.colocation as { name: string } | null;
+	const coloc = pompierUser.colocation as { name: string } | null;
 
 	return (
 		<div className="space-y-4 p-4">
@@ -28,17 +28,17 @@ export default async function PompierPage() {
 			<div className="flex items-center justify-between pt-2">
 				<div>
 					<h2 className="text-xl font-bold text-gray-900">
-						Salut, {member.display_name} 👋
+						Salut, {pompierUser.display_name} 👋
 					</h2>
 					{coloc && (
 						<p className="text-sm text-gray-500">{coloc.name}</p>
 					)}
 				</div>
-				<FireTruckButton colocationId={member.colocation_id} />
+				<FireTruckButton colocationId={pompierUser.colocation_id} isPompier pompierUserId={pompierUser.id} />
 			</div>
 
 			{/* Stats */}
-			<FiretruckStats colocationId={member.colocation_id} />
+			<FiretruckStats colocationId={pompierUser.colocation_id} />
 		</div>
 	);
 }

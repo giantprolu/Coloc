@@ -35,12 +35,11 @@ export async function GET(request: Request) {
 	const allExpiredEndpoints: string[] = [];
 
 	for (const coloc of colocations || []) {
-		// Récupérer les membres (exclure les pompiers qui n'ont pas la feature weekend)
+		// Récupérer les membres coloc (pompiers sont dans pompier_users, pas concernés)
 		const { data: members } = await supabase
 			.from("members")
 			.select("id")
-			.eq("colocation_id", coloc.id)
-			.neq("role", "pompier");
+			.eq("colocation_id", coloc.id);
 
 		if (!members?.length) continue;
 

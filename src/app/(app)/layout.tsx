@@ -34,12 +34,18 @@ export default async function AppLayout({
 		.single();
 
 	if (!member) {
-		redirect("/onboarding");
-	}
+		// Vérifier si c'est un pompier → rediriger vers /pompier
+		const { data: pompier } = await supabase
+			.from("pompier_users")
+			.select("id")
+			.eq("user_id", user.id)
+			.single();
 
-	// Les pompiers ne peuvent pas accéder à l'app principale
-	if (member.role === "pompier") {
-		redirect("/pompier");
+		if (pompier) {
+			redirect("/pompier");
+		}
+
+		redirect("/onboarding");
 	}
 
 	const unreadCount = await getUnreadChatCount(member.id, member.colocation_id);

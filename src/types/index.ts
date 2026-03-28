@@ -1,6 +1,6 @@
 // ============ TYPES PRINCIPAUX ============
 
-export type UserRole = "admin" | "member" | "pompier";
+export type UserRole = "admin" | "member";
 export type PresenceStatus = "home" | "away_tonight" | "traveling";
 export type NoiseLevel = "quiet" | "moderate" | "festive";
 export type EventStatus = "confirmed" | "cancelled";
@@ -231,11 +231,19 @@ export interface EmergencyButtonPermission {
 	created_at: string;
 }
 
+export interface PompierUser {
+	id: string;
+	user_id: string;
+	colocation_id: string;
+	display_name: string;
+	created_at: string;
+}
+
 export interface FiretruckClick {
 	id: string;
 	colocation_id: string;
-	member_id: string;
+	member_id: string | null;
+	pompier_user_id: string | null;
 	rating: number;
 	clicked_at: string;
-	member?: Member;
 }

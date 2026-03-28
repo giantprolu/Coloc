@@ -52,7 +52,7 @@ export function FiretruckPieChart({ data }: FiretruckPieChartProps) {
 				) : (
 					slices.map((slice) => (
 						<path
-							key={slice.memberId}
+							key={slice.participantId}
 							d={describeArc(slice.startAngle, slice.endAngle)}
 							fill={slice.color}
 							stroke="white"
@@ -86,7 +86,7 @@ export function FiretruckPieChart({ data }: FiretruckPieChartProps) {
 			<div className="w-full space-y-1.5">
 				{data.map((entry) => (
 					<div
-						key={entry.memberId}
+						key={entry.participantId}
 						className="flex items-center justify-between text-sm"
 					>
 						<div className="flex items-center gap-2 min-w-0">
@@ -95,7 +95,7 @@ export function FiretruckPieChart({ data }: FiretruckPieChartProps) {
 								style={{ backgroundColor: entry.color }}
 							/>
 							<span className="truncate text-gray-700">
-								{entry.memberName}
+								{entry.participantName}
 							</span>
 						</div>
 						<div className="flex items-center gap-2 flex-shrink-0">

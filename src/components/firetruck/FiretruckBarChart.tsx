@@ -47,9 +47,9 @@ export function FiretruckBarChart({ data, year }: FiretruckBarChartProps) {
 	const memberMap = new Map<string, { name: string; color: string }>();
 	for (const month of data) {
 		for (const mem of month.members) {
-			if (!memberMap.has(mem.memberId)) {
-				memberMap.set(mem.memberId, {
-					name: mem.memberName,
+			if (!memberMap.has(mem.participantId)) {
+				memberMap.set(mem.participantId, {
+					name: mem.participantName,
 					color: mem.color,
 				});
 			}
@@ -120,7 +120,7 @@ export function FiretruckBarChart({ data, year }: FiretruckBarChartProps) {
 
 								return (
 									<rect
-										key={mem.memberId}
+										key={mem.participantId}
 										x={groupX}
 										y={y}
 										width={barWidth}

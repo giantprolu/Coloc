@@ -12,49 +12,67 @@ function createAdminClient() {
 	);
 }
 
-async function getAuthenticatedMember() {
+/** Identifie l'utilisateur courant : soit membre coloc, soit pompier externe. */
+async function getAuthenticatedUser() {
 	const supabase = await createServerClient();
 	const {
 		data: { user },
 	} = await supabase.auth.getUser();
 	if (!user) throw new Error("Non authentifié");
 
+	// Essayer membre coloc d'abord
 	const { data: member } = await supabase
 		.from("members")
-		.select("id, colocation_id, role, display_name")
+		.select("id, colocation_id, display_name")
 		.eq("user_id", user.id)
 		.single();
 
-	if (!member) throw new Error("Membre introuvable");
-	return member;
+	if (member) {
+		return { type: "member" as const, ...member };
+	}
+
+	// Sinon pompier
+	const { data: pompier } = await supabase
+		.from("pompier_users")
+		.select("id, colocation_id, display_name")
+		.eq("user_id", user.id)
+		.single();
+
+	if (pompier) {
+		return { type: "pompier" as const, ...pompier };
+	}
+
+	throw new Error("Utilisateur introuvable");
 }
 
 /**
  * Enregistre un clic camion de pompier avec notation et envoie la notification.
+ * pompierUserId est fourni quand l'appel vient de l'app pompier.
  */
 export async function recordFiretruckClick(
 	colocationId: string,
 	rating: number,
+	pompierUserId?: string,
 ) {
 	if (rating < 1 || rating > 5 || !Number.isInteger(rating)) {
 		throw new Error("La note doit être entre 1 et 5");
 	}
 
-	const member = await getAuthenticatedMember();
+	const currentUser = await getAuthenticatedUser();
 
-	if (member.colocation_id !== colocationId) {
+	if (currentUser.colocation_id !== colocationId) {
 		throw new Error("Colocation introuvable");
 	}
 
 	const admin = createAdminClient();
 
-	// Vérifier la permission (ou rôle pompier)
-	if (member.role !== "pompier") {
+	// Vérifier la permission pour les membres coloc
+	if (currentUser.type === "member") {
 		const { data: permission } = await admin
 			.from("emergency_button_permissions")
 			.select("id")
 			.eq("colocation_id", colocationId)
-			.eq("member_id", member.id)
+			.eq("member_id", currentUser.id)
 			.single();
 
 		if (!permission) {
@@ -62,44 +80,65 @@ export async function recordFiretruckClick(
 		}
 	}
 
-	// Insérer le clic
-	await admin.from("firetruck_clicks").insert({
-		colocation_id: colocationId,
-		member_id: member.id,
-		rating,
-	});
+	// Insérer le clic avec le bon type d'utilisateur
+	if (currentUser.type === "pompier") {
+		await admin.from("firetruck_clicks").insert({
+			colocation_id: colocationId,
+			pompier_user_id: pompierUserId || currentUser.id,
+			rating,
+		});
+	} else {
+		await admin.from("firetruck_clicks").insert({
+			colocation_id: colocationId,
+			member_id: currentUser.id,
+			rating,
+		});
+	}
 
-	// Envoyer la notification push aux membres autorisés
+	// Envoyer les notifications push
+	// 1. Membres coloc avec permission
 	const { data: permittedMembers } = await admin
 		.from("emergency_button_permissions")
 		.select("member_id")
 		.eq("colocation_id", colocationId);
 
-	// Ajouter les membres pompier de la coloc
-	const { data: pompierMembers } = await admin
-		.from("members")
+	const memberIds = (permittedMembers || []).map(
+		(p) => p.member_id as string,
+	);
+
+	// 2. Pompier users de la coloc
+	const { data: pompierUsers } = await admin
+		.from("pompier_users")
 		.select("id")
-		.eq("colocation_id", colocationId)
-		.eq("role", "pompier");
+		.eq("colocation_id", colocationId);
 
-	const allPermittedIds = new Set([
-		...(permittedMembers || []).map((p) => p.member_id as string),
-		...(pompierMembers || []).map((p) => p.id as string),
-	]);
+	const pompierIds = (pompierUsers || []).map((p) => p.id as string);
 
-	if (allPermittedIds.size === 0) return { success: true };
+	// Récupérer les push subscriptions (member_id OU pompier_user_id)
+	const allSubs: { endpoint: string; p256dh: string; auth: string }[] = [];
 
-	const { data: subs } = await admin
-		.from("push_subscriptions")
-		.select("endpoint, p256dh, auth")
-		.in("member_id", [...allPermittedIds]);
+	if (memberIds.length > 0) {
+		const { data: memberSubs } = await admin
+			.from("push_subscriptions")
+			.select("endpoint, p256dh, auth")
+			.in("member_id", memberIds);
+		if (memberSubs) allSubs.push(...memberSubs);
+	}
 
-	if (!subs || subs.length === 0) return { success: true };
+	if (pompierIds.length > 0) {
+		const { data: pompierSubs } = await admin
+			.from("push_subscriptions")
+			.select("endpoint, p256dh, auth")
+			.in("pompier_user_id", pompierIds);
+		if (pompierSubs) allSubs.push(...pompierSubs);
+	}
 
-	const senderName = member.display_name || "Quelqu'un";
+	if (allSubs.length === 0) return { success: true };
+
+	const senderName = currentUser.display_name || "Quelqu'un";
 
 	const result = await sendPushToMany(
-		subs.map((s) => ({
+		allSubs.map((s) => ({
 			endpoint: s.endpoint,
 			p256dh: s.p256dh,
 			auth: s.auth,
@@ -136,21 +175,64 @@ const MEMBER_COLORS = [
 ];
 
 export interface MonthlyStatEntry {
-	memberId: string;
-	memberName: string;
+	participantId: string;
+	participantName: string;
 	clickCount: number;
 	avgRating: number;
 	color: string;
 }
 
 export interface YearlyStatEntry {
-	month: number; // 1-12
+	month: number;
 	members: {
-		memberId: string;
-		memberName: string;
+		participantId: string;
+		participantName: string;
 		clickCount: number;
 		color: string;
 	}[];
+}
+
+/** Construit un index nom/couleur pour tous les participants (members + pompiers). */
+async function getParticipantIndex(
+	admin: ReturnType<typeof createAdminClient>,
+	colocationId: string,
+) {
+	const [{ data: members }, { data: pompiers }] = await Promise.all([
+		admin
+			.from("members")
+			.select("id, display_name")
+			.eq("colocation_id", colocationId)
+			.order("created_at"),
+		admin
+			.from("pompier_users")
+			.select("id, display_name")
+			.eq("colocation_id", colocationId)
+			.order("created_at"),
+	]);
+
+	const nameMap = new Map<string, string>();
+	const colorMap = new Map<string, string>();
+	let idx = 0;
+
+	for (const m of members || []) {
+		nameMap.set(`m:${m.id}`, m.display_name);
+		colorMap.set(`m:${m.id}`, MEMBER_COLORS[idx % MEMBER_COLORS.length]);
+		idx++;
+	}
+	for (const p of pompiers || []) {
+		nameMap.set(`p:${p.id}`, p.display_name);
+		colorMap.set(`p:${p.id}`, MEMBER_COLORS[idx % MEMBER_COLORS.length]);
+		idx++;
+	}
+
+	return { nameMap, colorMap };
+}
+
+function participantKey(click: {
+	member_id: string | null;
+	pompier_user_id: string | null;
+}): string {
+	return click.member_id ? `m:${click.member_id}` : `p:${click.pompier_user_id}`;
 }
 
 /**
@@ -159,8 +241,8 @@ export interface YearlyStatEntry {
 export async function getFiretruckMonthlyStats(
 	colocationId: string,
 ): Promise<MonthlyStatEntry[]> {
-	const member = await getAuthenticatedMember();
-	if (member.colocation_id !== colocationId) {
+	const currentUser = await getAuthenticatedUser();
+	if (currentUser.colocation_id !== colocationId) {
 		throw new Error("Colocation introuvable");
 	}
 
@@ -171,61 +253,36 @@ export async function getFiretruckMonthlyStats(
 
 	const { data: clicks } = await admin
 		.from("firetruck_clicks")
-		.select("member_id, rating")
+		.select("member_id, pompier_user_id, rating")
 		.eq("colocation_id", colocationId)
 		.gte("clicked_at", monthStart.toISOString())
 		.lt("clicked_at", monthEnd.toISOString());
 
 	if (!clicks || clicks.length === 0) return [];
 
-	// Agréger par membre
-	const byMember = new Map<
+	const { nameMap, colorMap } = await getParticipantIndex(admin, colocationId);
+
+	// Agréger par participant
+	const byParticipant = new Map<
 		string,
 		{ count: number; totalRating: number }
 	>();
 	for (const click of clicks) {
-		const existing = byMember.get(click.member_id) || {
-			count: 0,
-			totalRating: 0,
-		};
+		const key = participantKey(click);
+		const existing = byParticipant.get(key) || { count: 0, totalRating: 0 };
 		existing.count++;
 		existing.totalRating += click.rating;
-		byMember.set(click.member_id, existing);
+		byParticipant.set(key, existing);
 	}
 
-	// Récupérer les noms des membres
-	const memberIds = [...byMember.keys()];
-	const { data: members } = await admin
-		.from("members")
-		.select("id, display_name")
-		.in("id", memberIds);
-
-	const memberMap = new Map(
-		(members || []).map((m) => [m.id, m.display_name as string]),
-	);
-
-	// Construire le résultat avec couleurs assignées par index stable
-	const { data: allColMembers } = await admin
-		.from("members")
-		.select("id")
-		.eq("colocation_id", colocationId)
-		.order("created_at");
-
-	const colorIndex = new Map(
-		(allColMembers || []).map((m, i) => [m.id, i % MEMBER_COLORS.length]),
-	);
-
-	return memberIds
-		.map((id) => {
-			const stats = byMember.get(id)!;
-			return {
-				memberId: id,
-				memberName: memberMap.get(id) || "Inconnu",
-				clickCount: stats.count,
-				avgRating: Math.round((stats.totalRating / stats.count) * 10) / 10,
-				color: MEMBER_COLORS[colorIndex.get(id) ?? 0],
-			};
-		})
+	return [...byParticipant.entries()]
+		.map(([key, stats]) => ({
+			participantId: key,
+			participantName: nameMap.get(key) || "Inconnu",
+			clickCount: stats.count,
+			avgRating: Math.round((stats.totalRating / stats.count) * 10) / 10,
+			color: colorMap.get(key) || MEMBER_COLORS[0],
+		}))
 		.sort((a, b) => b.clickCount - a.clickCount);
 }
 
@@ -235,8 +292,8 @@ export async function getFiretruckMonthlyStats(
 export async function getFiretruckYearlyStats(
 	colocationId: string,
 ): Promise<YearlyStatEntry[]> {
-	const member = await getAuthenticatedMember();
-	if (member.colocation_id !== colocationId) {
+	const currentUser = await getAuthenticatedUser();
+	if (currentUser.colocation_id !== colocationId) {
 		throw new Error("Colocation introuvable");
 	}
 
@@ -247,57 +304,38 @@ export async function getFiretruckYearlyStats(
 
 	const { data: clicks } = await admin
 		.from("firetruck_clicks")
-		.select("member_id, clicked_at")
+		.select("member_id, pompier_user_id, clicked_at")
 		.eq("colocation_id", colocationId)
 		.gte("clicked_at", yearStart.toISOString())
 		.lt("clicked_at", yearEnd.toISOString());
 
 	if (!clicks || clicks.length === 0) return [];
 
-	// Agréger par mois et membre
-	const byMonthMember = new Map<string, number>(); // "month-memberId" -> count
-	const memberIds = new Set<string>();
+	const { nameMap, colorMap } = await getParticipantIndex(admin, colocationId);
+
+	// Agréger par mois et participant
+	const byMonthParticipant = new Map<string, number>();
+	const participantIds = new Set<string>();
 
 	for (const click of clicks) {
 		const month = new Date(click.clicked_at).getMonth() + 1;
-		const key = `${month}-${click.member_id}`;
-		byMonthMember.set(key, (byMonthMember.get(key) || 0) + 1);
-		memberIds.add(click.member_id);
+		const key = participantKey(click);
+		const mapKey = `${month}-${key}`;
+		byMonthParticipant.set(mapKey, (byMonthParticipant.get(mapKey) || 0) + 1);
+		participantIds.add(key);
 	}
 
-	// Récupérer les noms
-	const { data: members } = await admin
-		.from("members")
-		.select("id, display_name")
-		.in("id", [...memberIds]);
-
-	const memberMap = new Map(
-		(members || []).map((m) => [m.id, m.display_name as string]),
-	);
-
-	// Couleurs stables
-	const { data: allColMembers } = await admin
-		.from("members")
-		.select("id")
-		.eq("colocation_id", colocationId)
-		.order("created_at");
-
-	const colorIndex = new Map(
-		(allColMembers || []).map((m, i) => [m.id, i % MEMBER_COLORS.length]),
-	);
-
-	// Construire les données pour les 12 mois
 	const result: YearlyStatEntry[] = [];
 	for (let month = 1; month <= 12; month++) {
 		const monthMembers: YearlyStatEntry["members"] = [];
-		for (const id of memberIds) {
-			const count = byMonthMember.get(`${month}-${id}`) || 0;
+		for (const pid of participantIds) {
+			const count = byMonthParticipant.get(`${month}-${pid}`) || 0;
 			if (count > 0) {
 				monthMembers.push({
-					memberId: id,
-					memberName: memberMap.get(id) || "Inconnu",
+					participantId: pid,
+					participantName: nameMap.get(pid) || "Inconnu",
 					clickCount: count,
-					color: MEMBER_COLORS[colorIndex.get(id) ?? 0],
+					color: colorMap.get(pid) || MEMBER_COLORS[0],
 				});
 			}
 		}

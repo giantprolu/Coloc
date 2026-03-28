@@ -2,7 +2,7 @@
 
 import { Home } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { signUpPompier } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export default function SignupPage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [isConfirmation, setIsConfirmation] = useState(false);
+	const router = useRouter();
 	const supabase = createClient();
 
 	const handleSignup = async (e: React.FormEvent) => {
@@ -49,6 +50,10 @@ export default function SignupPage() {
 				window.location.origin,
 			);
 			if (result.error) {
+				if (result.redirect) {
+					router.push(result.redirect);
+					return;
+				}
 				setError(result.error);
 				setIsLoading(false);
 				return;
