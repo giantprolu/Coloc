@@ -4,6 +4,7 @@ import { Home } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { signUpPompier } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -40,27 +41,36 @@ export default function SignupPage() {
 
 		setIsLoading(true);
 
-		// Passe le paramètre next dans le callback pour préserver la destination
-		const callbackUrl = next
-			? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
-			: `${window.location.origin}/auth/callback`;
-
-		const { error } = await supabase.auth.signUp({
-			email,
-			password,
-			options: {
-				emailRedirectTo: callbackUrl,
-			},
-		});
-
-		if (error) {
-			setError(
-				error.message === "User already registered"
-					? "Un compte existe déjà avec cet email."
-					: "Erreur lors de l'inscription.",
+		if (isPompier) {
+			// Inscription pompier : email custom via Resend
+			const result = await signUpPompier(
+				email,
+				password,
+				window.location.origin,
 			);
-			setIsLoading(false);
-			return;
+			if (result.error) {
+				setError(result.error);
+				setIsLoading(false);
+				return;
+			}
+		} else {
+			// Inscription coloc : email classique via Supabase
+			const { error } = await supabase.auth.signUp({
+				email,
+				password,
+				options: {
+					emailRedirectTo: `${window.location.origin}/auth/callback`,
+				},
+			});
+			if (error) {
+				setError(
+					error.message === "User already registered"
+						? "Un compte existe déjà avec cet email."
+						: "Erreur lors de l'inscription.",
+				);
+				setIsLoading(false);
+				return;
+			}
 		}
 
 		setIsConfirmation(true);
