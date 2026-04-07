@@ -133,3 +133,75 @@ export async function updateExpense(
 
 	revalidatePath("/expenses");
 }
+
+/**
+ * Déclare un remboursement : crée une dépense "Remboursement" qui annule la dette.
+ * Si je dois X€ à quelqu'un, je crée une dépense de X€ payée par moi avec un split pour l'autre.
+ */
+export async function settleDebt(
+	targetMemberId: string,
+	amount: number,
+) {
+	const supabase = await createServerClient();
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Non authentifié");
+
+	const { data: member } = await supabase
+		.from("members")
+		.select("id, colocation_id")
+		.eq("user_id", user.id)
+		.single();
+
+	if (!member) throw new Error("Membre introuvable");
+
+	// Vérifie que la cible est dans la même coloc
+	const { data: targetMember } = await supabase
+		.from("members")
+		.select("id, display_name, colocation_id")
+		.eq("id", targetMemberId)
+		.single();
+
+	if (!targetMember || targetMember.colocation_id !== member.colocation_id) {
+		throw new Error("Membre introuvable");
+	}
+
+	if (amount <= 0) {
+		throw new Error("Le montant doit être positif");
+	}
+
+	const admin = createAdminClient();
+
+	// Crée la dépense de remboursement
+	const { data: expense, error: expenseError } = await admin
+		.from("expenses")
+		.insert({
+			colocation_id: member.colocation_id,
+			paid_by: member.id,
+			title: `Remboursement à ${targetMember.display_name}`,
+			amount,
+		})
+		.select("id")
+		.single();
+
+	if (expenseError || !expense) {
+		throw new Error("Impossible de créer le remboursement");
+	}
+
+	// Crée le split : la cible "doit" le montant (annule la dette précédente)
+	const { error: splitError } = await admin.from("expense_splits").insert({
+		expense_id: expense.id,
+		member_id: targetMemberId,
+		amount,
+	});
+
+	if (splitError) {
+		// Rollback
+		await admin.from("expenses").delete().eq("id", expense.id);
+		throw new Error("Impossible de créer le remboursement");
+	}
+
+	revalidatePath("/expenses");
+}

@@ -1,12 +1,14 @@
-import { ArrowLeft, Bug, MapPin, Shield, Siren, Users } from "lucide-react";
+import { ArrowLeft, Bug, Database, MapPin, Shield, Siren, Users } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getDevPermissions } from "@/app/actions/dev";
 import { getEmergencyPermissions } from "@/app/actions/emergency";
+import { CleanupOrphanedButton } from "@/components/CleanupOrphanedButton";
 import { CopyInviteCode } from "@/components/CopyInviteCode";
 import { DevPermissionsManager } from "@/components/DevPermissionsManager";
 import { EmergencyPermissionsManager } from "@/components/EmergencyPermissionsManager";
 import { MemberRoleButton } from "@/components/MemberRoleButton";
+import { RemoveMemberButton } from "@/components/RemoveMemberButton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,11 +140,17 @@ export default async function ColocSettingsPage() {
 									{m.role === "admin" ? "Admin" : "Membre"}
 								</Badge>
 								{isAdmin && m.id !== member.id && (
-									<MemberRoleButton
-										memberId={m.id}
-										currentRole={m.role}
-										memberName={m.display_name}
-									/>
+									<>
+										<MemberRoleButton
+											memberId={m.id}
+											currentRole={m.role}
+											memberName={m.display_name}
+										/>
+										<RemoveMemberButton
+											memberId={m.id}
+											memberName={m.display_name}
+										/>
+									</>
 								)}
 							</div>
 						</div>
@@ -210,6 +218,24 @@ export default async function ColocSettingsPage() {
 							members={members}
 							permittedMemberIds={devPermissions}
 						/>
+					</CardContent>
+				</Card>
+			)}
+
+			{/* Maintenance BDD — admin only */}
+			{isAdmin && coloc && (
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="flex items-center gap-2 text-sm">
+							<Database className="h-4 w-4 text-gray-500" />
+							Maintenance
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-xs text-gray-500 mb-3">
+							Vérifie et supprime les données orphelines (traces de membres mal supprimés).
+						</p>
+						<CleanupOrphanedButton colocationId={coloc.id} />
 					</CardContent>
 				</Card>
 			)}
