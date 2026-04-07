@@ -86,7 +86,7 @@ export default async function PompierLayout({
 			</main>
 
 			<ServiceWorkerRegister swPath="/pompier-sw.js" scope="/pompier/" />
-			<NotificationPrompt />
+			<NotificationPrompt variant="pompier" />
 			<Toaster position="top-center" richColors />
 		</div>
 	);

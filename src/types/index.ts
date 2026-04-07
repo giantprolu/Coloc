@@ -247,3 +247,26 @@ export interface FiretruckClick {
 	rating: number;
 	clicked_at: string;
 }
+
+export interface FiretruckClickReaction {
+	id: string;
+	click_id: string;
+	member_id: string | null;
+	pompier_user_id: string | null;
+	emoji: string;
+	created_at: string;
+}
+
+export interface FiretruckFeedItem {
+	id: string;
+	displayName: string;
+	rating: number;
+	clickedAt: string;
+	isOwn: boolean;
+	reactions: {
+		emoji: string;
+		count: number;
+		hasOwn: boolean;
+		names: string[];
+	}[];
+}

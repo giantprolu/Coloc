@@ -1,4 +1,4 @@
-- [ ] pour le camion de pompier garder la même fonctionnalité mais il faut que d'autre personne puisse accéder a cette fonctionnalité d'une autre page sans installer l'app coloc mais l'app pompier (une pwa connécté a une autre pwa) il faut que ceux qui on l'app coloc ils ont pas besoin d'installer une autre pwa mais pour ceux qui ne sont pas dans la coloc ce sera une autre app avec le bouton camion, un camenbert statistique pour savoir qui a le plus cliqué dans le mois en court, chaque mois ça se reset et on garde en mémoire sur un histogramme en baton sur l'année
-- [ ] envoyer une notif chaque vendredi pour rappeler de remplir les dispo que chacun pour les weekend du mois
-- [ ] quand on clique sur la camion de pompier on selectionne 1 à 5 étoile pour noté il faut que ce soit aussi dans les statistiques
-- [ ] les statistiques doivent pouvoir être dans l'app de coloc aussi pour ceux qui ont l'option camion de pompier activé 
+- [x] app pompier, ajouter tout ce qu'il faut pour la gestion avec notif oui ou non.
+- [x] app pompier, etre sur que ce soit PWA 
+- [x] app pompier, mettre le meme style de chat que coloc dans l'app pompier pour réagir aux notifications
+- [x] toujours garder la distinction entre app coloc et app pompier

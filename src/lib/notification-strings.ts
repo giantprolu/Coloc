@@ -29,7 +29,7 @@ export const NOTIF_FIRETRUCK = {
 		rating
 			? `${senderName} a ken a l'instant ! ${"⭐".repeat(rating)}`
 			: `${senderName} a ken a l'instant !`,
-	url: "/dashboard",
+	url: "/pompier",
 	tag: "firetruck",
 };
 

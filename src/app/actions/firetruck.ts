@@ -1,9 +1,11 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 import { NOTIF_FIRETRUCK } from "@/lib/notification-strings";
 import { sendPushToMany } from "@/lib/push";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import type { FiretruckFeedItem } from "@/types";
 
 function createAdminClient() {
 	return createClient(
@@ -158,6 +160,7 @@ export async function recordFiretruckClick(
 			.in("endpoint", result.expiredEndpoints);
 	}
 
+	revalidatePath("/pompier");
 	return { success: true };
 }
 
@@ -343,4 +346,136 @@ export async function getFiretruckYearlyStats(
 	}
 
 	return result;
+}
+
+// ─── Feed avec réactions ────────────────────────────────────────────────────
+
+/**
+ * Récupère les derniers clics firetruck avec leurs réactions (feed style chat).
+ */
+export async function getFiretruckFeed(
+	colocationId: string,
+): Promise<FiretruckFeedItem[]> {
+	const currentUser = await getAuthenticatedUser();
+	if (currentUser.colocation_id !== colocationId) {
+		throw new Error("Colocation introuvable");
+	}
+
+	const admin = createAdminClient();
+
+	const { data: clicks } = await admin
+		.from("firetruck_clicks")
+		.select("id, member_id, pompier_user_id, rating, clicked_at")
+		.eq("colocation_id", colocationId)
+		.order("clicked_at", { ascending: true })
+		.limit(50);
+
+	if (!clicks || clicks.length === 0) return [];
+
+	const { nameMap } = await getParticipantIndex(admin, colocationId);
+
+	// Récupérer les réactions pour tous ces clics
+	const clickIds = clicks.map((c) => c.id);
+	const { data: reactions } = await admin
+		.from("firetruck_click_reactions")
+		.select("id, click_id, member_id, pompier_user_id, emoji")
+		.in("click_id", clickIds);
+
+	// Déterminer l'identifiant courant
+	const currentKey =
+		currentUser.type === "member"
+			? `m:${currentUser.id}`
+			: `p:${currentUser.id}`;
+
+	// Construire le feed
+	return clicks.map((click) => {
+		const key = participantKey(click);
+		const clickReactions = (reactions || []).filter(
+			(r) => r.click_id === click.id,
+		);
+
+		// Agréger les réactions par emoji
+		const emojiMap = new Map<
+			string,
+			{ count: number; hasOwn: boolean; names: string[] }
+		>();
+		for (const r of clickReactions) {
+			const rKey = r.member_id ? `m:${r.member_id}` : `p:${r.pompier_user_id}`;
+			const entry = emojiMap.get(r.emoji) || {
+				count: 0,
+				hasOwn: false,
+				names: [],
+			};
+			entry.count++;
+			if (rKey === currentKey) entry.hasOwn = true;
+			const name = nameMap.get(rKey);
+			if (name) entry.names.push(name);
+			emojiMap.set(r.emoji, entry);
+		}
+
+		return {
+			id: click.id,
+			displayName: nameMap.get(key) || "Inconnu",
+			rating: click.rating,
+			clickedAt: click.clicked_at,
+			isOwn: key === currentKey,
+			reactions: Array.from(emojiMap.entries()).map(([emoji, info]) => ({
+				emoji,
+				count: info.count,
+				hasOwn: info.hasOwn,
+				names: info.names,
+			})),
+		};
+	});
+}
+
+/**
+ * Ajoute ou retire une réaction emoji sur un clic firetruck.
+ */
+export async function toggleFiretruckClickReaction(
+	clickId: string,
+	emoji: string,
+) {
+	const currentUser = await getAuthenticatedUser();
+	const admin = createAdminClient();
+
+	// Vérifier que le clic existe et est dans la même coloc
+	const { data: click } = await admin
+		.from("firetruck_clicks")
+		.select("id, colocation_id")
+		.eq("id", clickId)
+		.single();
+
+	if (!click || click.colocation_id !== currentUser.colocation_id) {
+		throw new Error("Clic introuvable");
+	}
+
+	const userFilter =
+		currentUser.type === "member"
+			? { member_id: currentUser.id }
+			: { pompier_user_id: currentUser.id };
+
+	// Vérifier si la réaction existe déjà
+	const { data: existing } = await admin
+		.from("firetruck_click_reactions")
+		.select("id")
+		.eq("click_id", clickId)
+		.eq("emoji", emoji)
+		.match(userFilter)
+		.single();
+
+	if (existing) {
+		await admin
+			.from("firetruck_click_reactions")
+			.delete()
+			.eq("id", existing.id);
+	} else {
+		await admin.from("firetruck_click_reactions").insert({
+			click_id: clickId,
+			emoji,
+			...userFilter,
+		});
+	}
+
+	revalidatePath("/pompier");
 }

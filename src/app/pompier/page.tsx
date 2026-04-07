@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
+import { getFiretruckFeed } from "@/app/actions/firetruck";
 import { FireTruckButton } from "@/components/FireTruckButton";
 import { FiretruckStats } from "@/components/firetruck/FiretruckStats";
+import { FiretruckFeed } from "@/components/pompier/FiretruckFeed";
+import { PompierNotificationToggle } from "@/components/pompier/PompierNotificationToggle";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function PompierPage() {
@@ -20,17 +23,23 @@ export default async function PompierPage() {
 
 	if (!pompierUser) redirect("/pompier/onboarding");
 
+	const feedItems = await getFiretruckFeed(pompierUser.colocation_id);
+
 	return (
 		<div className="space-y-4 p-4">
-			{/* En-tête */}
+			{/* En-tete */}
 			<div className="flex items-center justify-between pt-2">
-				<div>
+				<div className="flex items-center gap-2">
 					<h2 className="text-xl font-bold text-gray-900">
 						Salut, {pompierUser.display_name} 👋
 					</h2>
+					<PompierNotificationToggle />
 				</div>
 				<FireTruckButton colocationId={pompierUser.colocation_id} isPompier pompierUserId={pompierUser.id} />
 			</div>
+
+			{/* Feed activité */}
+			<FiretruckFeed items={feedItems} />
 
 			{/* Stats */}
 			<FiretruckStats colocationId={pompierUser.colocation_id} />

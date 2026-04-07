@@ -1,0 +1,103 @@
+"use client";
+
+import { Bell, BellOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+
+type NotifState = "loading" | "unsupported" | "denied" | "enabled" | "disabled";
+
+export function PompierNotificationToggle() {
+	const [state, setState] = useState<NotifState>("loading");
+
+	useEffect(() => {
+		if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+			setState("unsupported");
+			return;
+		}
+		if (Notification.permission === "denied") {
+			setState("denied");
+			return;
+		}
+		if (Notification.permission === "granted") {
+			// Check if actually subscribed
+			navigator.serviceWorker.ready.then((reg) => {
+				reg.pushManager.getSubscription().then((sub) => {
+					setState(sub ? "enabled" : "disabled");
+				});
+			});
+			return;
+		}
+		setState("disabled");
+	}, []);
+
+	const handleEnable = async () => {
+		setState("loading");
+		try {
+			const permission = await Notification.requestPermission();
+			if (permission !== "granted") {
+				setState(permission === "denied" ? "denied" : "disabled");
+				return;
+			}
+
+			const registration = await navigator.serviceWorker.ready;
+			const subscription = await registration.pushManager.subscribe({
+				userVisibleOnly: true,
+				applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+			});
+
+			await fetch("/api/push/subscribe", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ subscription }),
+			});
+
+			setState("enabled");
+			toast.success("Notifications activées !");
+		} catch {
+			toast.error("Impossible d'activer les notifications");
+			setState("disabled");
+		}
+	};
+
+	const handleDisable = async () => {
+		setState("loading");
+		try {
+			const registration = await navigator.serviceWorker.ready;
+			const subscription = await registration.pushManager.getSubscription();
+			if (subscription) {
+				await subscription.unsubscribe();
+			}
+			setState("disabled");
+			toast.success("Notifications désactivées");
+		} catch {
+			toast.error("Erreur");
+			setState("enabled");
+		}
+	};
+
+	if (state === "unsupported") return null;
+
+	return (
+		<Button
+			variant="ghost"
+			size="icon"
+			className="h-9 w-9"
+			onClick={state === "enabled" ? handleDisable : handleEnable}
+			disabled={state === "loading" || state === "denied"}
+			title={
+				state === "denied"
+					? "Notifications bloquées par le navigateur"
+					: state === "enabled"
+						? "Désactiver les notifications"
+						: "Activer les notifications"
+			}
+		>
+			{state === "enabled" ? (
+				<Bell className="h-5 w-5 text-red-600" />
+			) : (
+				<BellOff className="h-5 w-5 text-gray-400" />
+			)}
+		</Button>
+	);
+}
