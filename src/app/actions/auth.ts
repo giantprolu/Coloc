@@ -53,12 +53,13 @@ export async function signUpPompier(
 		}
 
 		// 2. Générer un magic link pour connexion en un clic
+		// redirect_to SANS query params pour passer la validation Supabase Redirect URLs
 		const { data: linkData, error: linkError } =
 			await admin.auth.admin.generateLink({
 				type: "magiclink",
 				email,
 				options: {
-					redirectTo: `${origin}/auth/callback?next=%2Fpompier`,
+					redirectTo: `${origin}/auth/callback`,
 				},
 			});
 
@@ -68,7 +69,7 @@ export async function signUpPompier(
 				from: "App Pompier <noreply@app.trouve-tout-conseil.fr>",
 				to: email,
 				subject: "🚒 Bienvenue - Qui ken le plus ?",
-				html: buildPompierEmail(`${origin}/login?next=/pompier`),
+				html: buildPompierEmail(`${origin}/login`),
 			});
 			if (emailError) console.error("Resend error:", emailError);
 			return {};
@@ -78,7 +79,7 @@ export async function signUpPompier(
 		const linkUrl = new URL(linkData.properties.action_link);
 		linkUrl.searchParams.set(
 			"redirect_to",
-			`${origin}/auth/callback?next=%2Fpompier`,
+			`${origin}/auth/callback`,
 		);
 		const magicUrl = linkUrl.toString();
 

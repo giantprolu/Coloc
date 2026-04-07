@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
-	const { searchParams, origin } = new URL(request.url);
+	const requestUrl = new URL(request.url);
+	const { searchParams, origin } = requestUrl;
 	const code = searchParams.get("code");
 	const token_hash = searchParams.get("token_hash");
 	const type = searchParams.get("type");
-	const next = searchParams.get("next") ?? "/dashboard";
+
+	// Détecte le domaine pompier pour le redirect par défaut
+	const isPompierDomain = requestUrl.hostname.startsWith("pompier.");
+	const next = searchParams.get("next") ?? (isPompierDomain ? "/pompier" : "/dashboard");
 
 	const supabase = await createClient();
 	let authError = null;
