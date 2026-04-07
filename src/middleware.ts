@@ -9,6 +9,10 @@ export async function middleware(request: NextRequest) {
 		return NextResponse.next();
 	}
 
+	// Détection du domaine pompier
+	const hostname = request.headers.get("host") || "";
+	const isPompierDomain = hostname.startsWith("pompier.");
+
 	let supabaseResponse = NextResponse.next({
 		request,
 	});
@@ -53,12 +57,51 @@ export async function middleware(request: NextRequest) {
 		pathname.startsWith(route),
 	);
 
+	// === Domaine pompier : isolation complète ===
+	if (isPompierDomain) {
+		// Racine → /pompier
+		if (pathname === "/") {
+			const url = request.nextUrl.clone();
+			url.pathname = "/pompier";
+			return NextResponse.redirect(url);
+		}
+
+		// Routes autorisées sur le domaine pompier
+		const allowedPaths = [
+			"/pompier",
+			"/login",
+			"/signup",
+			"/auth",
+			"/forgot-password",
+			"/reset-password",
+		];
+		const isAllowedPath = allowedPaths.some((p) => pathname.startsWith(p));
+
+		// Bloquer les routes coloc (dashboard, settings, expenses, etc.)
+		if (!isAllowedPath && !isPublicRoute) {
+			const url = request.nextUrl.clone();
+			url.pathname = "/pompier";
+			return NextResponse.redirect(url);
+		}
+
+		// Auto-ajouter ?next=/pompier sur les pages publiques pour le style rouge
+		const needsNextParam = ["/login", "/signup", "/forgot-password"];
+		if (
+			needsNextParam.some((p) => pathname.startsWith(p)) &&
+			!request.nextUrl.searchParams.has("next")
+		) {
+			const url = request.nextUrl.clone();
+			url.searchParams.set("next", "/pompier");
+			return NextResponse.redirect(url);
+		}
+	}
+
 	// Redirige les utilisateurs non connectés vers /login
 	if (!user && !isPublicRoute) {
 		const url = request.nextUrl.clone();
 		url.pathname = "/login";
 		// Préserve la destination pour les routes pompier
-		if (pathname.startsWith("/pompier")) {
+		if (pathname.startsWith("/pompier") || isPompierDomain) {
 			url.searchParams.set("next", "/pompier");
 		}
 		return NextResponse.redirect(url);
@@ -72,10 +115,12 @@ export async function middleware(request: NextRequest) {
 		!pathname.startsWith("/auth") &&
 		!pathname.startsWith("/reset-password")
 	) {
-		// Préserver le paramètre next pour les redirections pompier
 		const next = request.nextUrl.searchParams.get("next");
 		const url = request.nextUrl.clone();
-		url.pathname = next?.startsWith("/pompier") ? "/pompier" : "/dashboard";
+		url.pathname =
+			next?.startsWith("/pompier") || isPompierDomain
+				? "/pompier"
+				: "/dashboard";
 		url.search = "";
 		return NextResponse.redirect(url);
 	}
