@@ -40,7 +40,7 @@ export default function PompierOnboardingPage() {
 					</div>
 					<h1 className="text-3xl font-bold text-gray-900">App Pompier</h1>
 					<p className="text-gray-500 mt-2">
-						Rejoins une coloc avec ton code d&apos;invitation
+						Rejoins ton groupe avec ton code
 					</p>
 				</div>
 
@@ -48,7 +48,7 @@ export default function PompierOnboardingPage() {
 					<CardContent className="pt-6">
 						<form onSubmit={handleJoin} className="space-y-4">
 							<div className="space-y-2">
-								<Label htmlFor="inviteCode">Code d&apos;invitation</Label>
+								<Label htmlFor="inviteCode">Code du groupe</Label>
 								<Input
 									id="inviteCode"
 									placeholder="ex : ABC123"
@@ -59,7 +59,7 @@ export default function PompierOnboardingPage() {
 									required
 								/>
 								<p className="text-xs text-gray-500">
-									Demande le code à un membre de la coloc
+									Demande le code à un membre de ton groupe
 								</p>
 							</div>
 							<div className="space-y-2">

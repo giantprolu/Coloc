@@ -14,13 +14,11 @@ export default async function PompierPage() {
 
 	const { data: pompierUser } = await supabase
 		.from("pompier_users")
-		.select("*, colocation:colocations(name)")
+		.select("id, user_id, colocation_id, display_name")
 		.eq("user_id", user.id)
 		.single();
 
 	if (!pompierUser) redirect("/pompier/onboarding");
-
-	const coloc = pompierUser.colocation as { name: string } | null;
 
 	return (
 		<div className="space-y-4 p-4">
@@ -30,9 +28,6 @@ export default async function PompierPage() {
 					<h2 className="text-xl font-bold text-gray-900">
 						Salut, {pompierUser.display_name} 👋
 					</h2>
-					{coloc && (
-						<p className="text-sm text-gray-500">{coloc.name}</p>
-					)}
 				</div>
 				<FireTruckButton colocationId={pompierUser.colocation_id} isPompier pompierUserId={pompierUser.id} />
 			</div>
