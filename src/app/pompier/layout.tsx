@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
 import { NotificationPrompt } from "@/components/NotificationPrompt";
+import { PompierInstallPrompt } from "@/components/pompier/PompierInstallPrompt";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { Toaster } from "@/components/ui/sonner";
 import { createClient } from "@/lib/supabase/server";
@@ -17,8 +18,8 @@ export const metadata: Metadata = {
 	},
 	manifest: "/pompier/manifest.webmanifest",
 	icons: {
-		icon: "/icons/icon-192.png",
-		apple: "/icons/icon-192.png",
+		icon: "/pompier/icon-192",
+		apple: "/pompier/icon-192",
 	},
 };
 
@@ -87,6 +88,7 @@ export default async function PompierLayout({
 
 			<ServiceWorkerRegister swPath="/pompier-sw.js" scope="/pompier/" />
 			<NotificationPrompt variant="pompier" />
+			<PompierInstallPrompt />
 			<Toaster position="top-center" richColors />
 		</div>
 	);

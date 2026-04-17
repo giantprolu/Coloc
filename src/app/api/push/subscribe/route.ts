@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
@@ -49,8 +50,12 @@ export async function POST(request: Request) {
 			);
 		}
 
-		// Upsert de l'abonnement push avec le bon type d'utilisateur
-		const { error } = await supabase.from("push_subscriptions").upsert(
+		// Upsert via admin client pour contourner les RLS (authentification déjà vérifiée)
+		const admin = createAdminClient(
+			process.env.NEXT_PUBLIC_SUPABASE_URL!,
+			process.env.SUPABASE_SERVICE_ROLE_KEY!,
+		);
+		const { error } = await admin.from("push_subscriptions").upsert(
 			{
 				...(member
 					? { member_id: member.id }
