@@ -7,6 +7,11 @@ import type { FiretruckFeedItem } from "@/types";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "🔥", "💀"];
 
+const LOCATION_LABEL: Record<string, string> = {
+	domicile: "🏠",
+	exterieur: "🌍",
+};
+
 interface FiretruckClickBubbleProps {
 	item: FiretruckFeedItem;
 	showName: boolean;
@@ -63,11 +68,21 @@ export function FiretruckClickBubble({
 					>
 						<span className="font-medium">{item.displayName}</span>
 						<span className={item.isOwn ? " text-red-100" : " text-gray-500"}>
-							{" "}a ken !
+							{item.locationType ? ` ${LOCATION_LABEL[item.locationType]}` : ""} a ken !
 						</span>
 						<div className="mt-0.5">
 							{"⭐".repeat(item.rating)}
 						</div>
+						{item.description && (
+							<p
+								className={cn(
+									"mt-1 text-xs italic",
+									item.isOwn ? "text-red-200" : "text-gray-400",
+								)}
+							>
+								{item.description}
+							</p>
+						)}
 					</div>
 
 					{/* Bouton réaction */}

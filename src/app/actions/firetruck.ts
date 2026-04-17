@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { NOTIF_FIRETRUCK } from "@/lib/notification-strings";
 import { sendPushToMany } from "@/lib/push";
 import { createClient as createServerClient } from "@/lib/supabase/server";
-import type { FiretruckFeedItem } from "@/types";
+import type { FiretruckFeedItem, FiretruckLocationType } from "@/types";
 
 function createAdminClient() {
 	return createClient(
@@ -55,6 +55,8 @@ export async function recordFiretruckClick(
 	colocationId: string,
 	rating: number,
 	pompierUserId?: string,
+	locationType?: FiretruckLocationType | null,
+	description?: string | null,
 ) {
 	if (rating < 1 || rating > 5 || !Number.isInteger(rating)) {
 		throw new Error("La note doit être entre 1 et 5");
@@ -82,18 +84,25 @@ export async function recordFiretruckClick(
 		}
 	}
 
+	const extraFields = {
+		...(locationType ? { location_type: locationType } : {}),
+		...(description?.trim() ? { description: description.trim() } : {}),
+	};
+
 	// Insérer le clic avec le bon type d'utilisateur
 	if (currentUser.type === "pompier") {
 		await admin.from("firetruck_clicks").insert({
 			colocation_id: colocationId,
 			pompier_user_id: pompierUserId || currentUser.id,
 			rating,
+			...extraFields,
 		});
 	} else {
 		await admin.from("firetruck_clicks").insert({
 			colocation_id: colocationId,
 			member_id: currentUser.id,
 			rating,
+			...extraFields,
 		});
 	}
 
@@ -365,7 +374,7 @@ export async function getFiretruckFeed(
 
 	const { data: clicks } = await admin
 		.from("firetruck_clicks")
-		.select("id, member_id, pompier_user_id, rating, clicked_at")
+		.select("id, member_id, pompier_user_id, rating, location_type, description, clicked_at")
 		.eq("colocation_id", colocationId)
 		.order("clicked_at", { ascending: true })
 		.limit(50);
@@ -417,6 +426,8 @@ export async function getFiretruckFeed(
 			id: click.id,
 			displayName: nameMap.get(key) || "Inconnu",
 			rating: click.rating,
+			locationType: click.location_type ?? null,
+			description: click.description ?? null,
 			clickedAt: click.clicked_at,
 			isOwn: key === currentKey,
 			reactions: Array.from(emojiMap.entries()).map(([emoji, info]) => ({
@@ -478,4 +489,44 @@ export async function toggleFiretruckClickReaction(
 	}
 
 	revalidatePath("/pompier");
+}
+
+// ─── Stats de localisation ──────────────────────────────────────────────────
+
+export interface LocationStats {
+	domicile: number;
+	exterieur: number;
+	unknown: number;
+}
+
+/**
+ * Compte la répartition domicile / extérieur pour le mois en cours.
+ */
+export async function getFiretruckLocationStats(
+	colocationId: string,
+): Promise<LocationStats> {
+	const currentUser = await getAuthenticatedUser();
+	if (currentUser.colocation_id !== colocationId) {
+		throw new Error("Colocation introuvable");
+	}
+
+	const admin = createAdminClient();
+	const now = new Date();
+	const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+	const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+	const { data: clicks } = await admin
+		.from("firetruck_clicks")
+		.select("location_type")
+		.eq("colocation_id", colocationId)
+		.gte("clicked_at", monthStart.toISOString())
+		.lt("clicked_at", monthEnd.toISOString());
+
+	const stats: LocationStats = { domicile: 0, exterieur: 0, unknown: 0 };
+	for (const c of clicks || []) {
+		if (c.location_type === "domicile") stats.domicile++;
+		else if (c.location_type === "exterieur") stats.exterieur++;
+		else stats.unknown++;
+	}
+	return stats;
 }

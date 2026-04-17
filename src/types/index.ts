@@ -239,12 +239,16 @@ export interface PompierUser {
 	created_at: string;
 }
 
+export type FiretruckLocationType = "domicile" | "exterieur";
+
 export interface FiretruckClick {
 	id: string;
 	colocation_id: string;
 	member_id: string | null;
 	pompier_user_id: string | null;
 	rating: number;
+	location_type: FiretruckLocationType | null;
+	description: string | null;
 	clicked_at: string;
 }
 
@@ -261,6 +265,8 @@ export interface FiretruckFeedItem {
 	id: string;
 	displayName: string;
 	rating: number;
+	locationType: FiretruckLocationType | null;
+	description: string | null;
 	clickedAt: string;
 	isOwn: boolean;
 	reactions: {

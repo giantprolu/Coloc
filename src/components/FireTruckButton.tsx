@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { recordFiretruckClick } from "@/app/actions/firetruck";
 import { FiretruckRatingModal } from "@/components/firetruck/FiretruckRatingModal";
+import type { FiretruckLocationType } from "@/types";
 
 interface FireTruckButtonProps {
 	colocationId: string;
@@ -19,11 +20,21 @@ export function FireTruckButton({
 	const [loading, setLoading] = useState(false);
 	const [modalOpen, setModalOpen] = useState(false);
 
-	const handleSubmit = async (rating: number) => {
+	const handleSubmit = async (
+		rating: number,
+		locationType: FiretruckLocationType | null,
+		description: string | null,
+	) => {
 		if (loading) return;
 		setLoading(true);
 		try {
-			await recordFiretruckClick(colocationId, rating, isPompier ? pompierUserId : undefined);
+			await recordFiretruckClick(
+				colocationId,
+				rating,
+				isPompier ? pompierUserId : undefined,
+				locationType,
+				description,
+			);
 			toast.success("🚒 Notification envoyée !");
 			setModalOpen(false);
 		} catch (err) {

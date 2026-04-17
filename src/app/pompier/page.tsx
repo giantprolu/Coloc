@@ -3,6 +3,7 @@ import { getFiretruckFeed } from "@/app/actions/firetruck";
 import { FireTruckButton } from "@/components/FireTruckButton";
 import { FiretruckStats } from "@/components/firetruck/FiretruckStats";
 import { FiretruckFeed } from "@/components/pompier/FiretruckFeed";
+import { PompierDevSection } from "@/components/pompier/PompierDevSection";
 import { PompierNotificationToggle } from "@/components/pompier/PompierNotificationToggle";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,6 +44,11 @@ export default async function PompierPage() {
 
 			{/* Stats */}
 			<FiretruckStats colocationId={pompierUser.colocation_id} />
+
+			{/* Section dev — uniquement pour l'utilisateur "test" */}
+			{pompierUser.display_name.toLowerCase() === "test" && (
+				<PompierDevSection />
+			)}
 		</div>
 	);
 }

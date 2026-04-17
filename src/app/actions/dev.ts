@@ -9,6 +9,24 @@ import {
 import { sendPushToMany } from "@/lib/push";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
+async function getAuthenticatedPompier() {
+	const supabase = await createServerClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Non authentifié");
+
+	const admin = createAdminClient();
+	const { data: pompier } = await admin
+		.from("pompier_users")
+		.select("id, colocation_id, display_name")
+		.eq("user_id", user.id)
+		.single();
+
+	if (!pompier) throw new Error("Utilisateur pompier introuvable");
+	return pompier;
+}
+
 function createAdminClient() {
 	return createClient(
 		process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -172,6 +190,74 @@ export async function sendTestPush(
 			.delete()
 			.in("endpoint", result.expiredEndpoints);
 	}
+
+	return { success: true };
+}
+
+// ─── Actions dev Pompier ─────────────────────────────────────────────────────
+
+/**
+ * Envoie une notification de test au pompier "test".
+ * Réservé à l'utilisateur dont le display_name est "test".
+ */
+export async function sendTestPushPompier() {
+	const pompier = await getAuthenticatedPompier();
+	if (pompier.display_name.toLowerCase() !== "test") {
+		throw new Error("Réservé à l'utilisateur test");
+	}
+
+	const admin = createAdminClient();
+	const { data: subs } = await admin
+		.from("push_subscriptions")
+		.select("endpoint, p256dh, auth")
+		.eq("pompier_user_id", pompier.id);
+
+	if (!subs || subs.length === 0) {
+		throw new Error("Aucune souscription push. Active les notifications d'abord.");
+	}
+
+	const result = await sendPushToMany(
+		subs.map((s) => ({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth })),
+		{
+			title: NOTIF_TEST_FIRETRUCK.title,
+			body: NOTIF_TEST_FIRETRUCK.body,
+			url: "/pompier",
+			tag: "firetruck",
+		},
+	);
+
+	if (result.expiredEndpoints.length > 0) {
+		await admin
+			.from("push_subscriptions")
+			.delete()
+			.in("endpoint", result.expiredEndpoints);
+	}
+
+	return { success: true };
+}
+
+/**
+ * Enregistre un clic test sans envoyer de notifications.
+ * Réservé à l'utilisateur dont le display_name est "test".
+ */
+export async function recordTestFiretruckClick(
+	rating: number,
+	locationType?: "domicile" | "exterieur" | null,
+	description?: string | null,
+) {
+	const pompier = await getAuthenticatedPompier();
+	if (pompier.display_name.toLowerCase() !== "test") {
+		throw new Error("Réservé à l'utilisateur test");
+	}
+
+	const admin = createAdminClient();
+	await admin.from("firetruck_clicks").insert({
+		colocation_id: pompier.colocation_id,
+		pompier_user_id: pompier.id,
+		rating,
+		...(locationType ? { location_type: locationType } : {}),
+		...(description?.trim() ? { description: description.trim() } : {}),
+	});
 
 	return { success: true };
 }
