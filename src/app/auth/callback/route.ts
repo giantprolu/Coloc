@@ -20,10 +20,10 @@ export async function GET(request: Request) {
 		const { error } = await supabase.auth.exchangeCodeForSession(code);
 		authError = error;
 	} else if (token_hash && type) {
-		// Token flow (email confirmation)
+		// Token flow (email confirmation, magic link, recovery)
 		const { error } = await supabase.auth.verifyOtp({
 			token_hash,
-			type: type as "email" | "signup" | "recovery",
+			type: type as "email" | "signup" | "recovery" | "magiclink" | "invite" | "email_change",
 		});
 		authError = error;
 	} else {

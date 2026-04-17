@@ -63,7 +63,7 @@ export async function signUpPompier(
 				},
 			});
 
-		if (linkError || !linkData?.properties?.action_link) {
+		if (linkError || !linkData?.properties?.hashed_token) {
 			// Fallback : envoyer vers la page de login
 			const { error: emailError } = await resend.emails.send({
 				from: "App Pompier <noreply@app.trouve-tout-conseil.fr>",
@@ -75,13 +75,14 @@ export async function signUpPompier(
 			return {};
 		}
 
-		// Forcer le redirect_to dans le magic link
-		const linkUrl = new URL(linkData.properties.action_link);
-		linkUrl.searchParams.set(
-			"redirect_to",
-			`${origin}/auth/callback`,
-		);
-		const magicUrl = linkUrl.toString();
+		// Construire l'URL de callback directement avec token_hash (évite le
+		// passage par supabase.co/auth/v1/verify qui renverrait la session dans
+		// le fragment URL, illisible côté serveur)
+		const magicUrl =
+			`${origin}/auth/callback` +
+			`?token_hash=${encodeURIComponent(linkData.properties.hashed_token)}` +
+			`&type=magiclink` +
+			`&next=/pompier`;
 
 		// 3. Envoyer l'email via Resend
 		const { error: emailError } = await resend.emails.send({
